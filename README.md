@@ -59,6 +59,8 @@ pnpm install
 pnpm start
 ```
 
+This backend includes a local `pnpm-workspace.yaml` that explicitly allows build scripts for `@p-stream/providers`, which is required because the dependency is installed from GitHub and needs its prepare/build step during `pnpm install`.
+
 Default port is `3001`.
 
 Health check:

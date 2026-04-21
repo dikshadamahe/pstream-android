@@ -1,0 +1,2 @@
+allowBuilds:
+  "@p-stream/providers": true
