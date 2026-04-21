@@ -1,0 +1,9 @@
+.codex/.env
+PAT.txt
+*.keystore
+key.properties
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
