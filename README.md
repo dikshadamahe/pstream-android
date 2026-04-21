@@ -21,6 +21,11 @@ It does not host media or act as a CDN. The app pulls metadata from TMDB and res
 - Express
 - `@p-stream/providers`
 
+Note:
+- the package import name remains `@p-stream/providers`
+- the Git dependency source should use `xp-technologies-dev/providers`
+- some upstream docs still reference `p-stream/*`, but those code references may be stale
+
 ## Project Layout
 
 ```text
@@ -41,6 +46,9 @@ Flutter app -> providers-api :3001 -> simple-proxy :3000 -> streaming CDNs
 
 `simple-proxy` is expected to run separately on the VM and is based on:
 `https://github.com/xp-technologies-dev/simple-proxy`
+
+The providers dependency is installed from:
+`https://github.com/xp-technologies-dev/providers`
 
 ## Local Backend Setup
 

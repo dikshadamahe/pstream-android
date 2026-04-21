@@ -10,7 +10,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "@p-stream/providers": "github:p-stream/providers#production",
+    "@p-stream/providers": "github:xp-technologies-dev/providers#production",
     "cors": "^2.8.5",
     "express": "^4.21.2"
   }
