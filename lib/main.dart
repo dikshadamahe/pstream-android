@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:pstream_android/storage/local_storage.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await LocalStorage.init();
   runApp(const MyApp());
 }
 

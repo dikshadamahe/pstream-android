@@ -11,6 +11,14 @@ class AppConfig {
   static String get tmdbReadToken =>
       const String.fromEnvironment('TMDB_TOKEN', defaultValue: '');
 
+  static double get watchedRatio {
+    const String rawValue = String.fromEnvironment(
+      'WATCHED_RATIO',
+      defaultValue: '0.90',
+    );
+    return double.tryParse(rawValue) ?? 0.90;
+  }
+
   static String _trimTrailingSlash(String value) {
     return value.replaceFirst(RegExp(r'/+$'), '');
   }
