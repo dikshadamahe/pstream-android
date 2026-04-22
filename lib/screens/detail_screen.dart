@@ -7,6 +7,7 @@ import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
 import 'package:pstream_android/services/tmdb_service.dart';
 import 'package:pstream_android/storage/local_storage.dart';
+import 'package:pstream_android/widgets/episode_list_sheet.dart';
 import 'package:shimmer/shimmer.dart';
 
 class DetailScreen extends StatefulWidget {
@@ -54,13 +55,13 @@ class _DetailScreenState extends State<DetailScreen> {
     int? selectedEpisode;
 
     if (media.isShow) {
-      final _EpisodeSelection? selection =
-          await showModalBottomSheet<_EpisodeSelection>(
+      final EpisodeSelection? selection =
+          await showModalBottomSheet<EpisodeSelection>(
             context: context,
             backgroundColor: AppColors.modalBackground,
             isScrollControlled: true,
             builder: (BuildContext context) {
-              return _EpisodePickerSheet(
+              return EpisodeListSheet(
                 media: media,
                 tmdbService: widget.tmdbService,
               );
@@ -521,133 +522,4 @@ class _BackdropPlaceholder extends StatelessWidget {
       child: const ColoredBox(color: AppColors.mediaCardHoverBackground),
     );
   }
-}
-
-class _EpisodePickerSheet extends StatefulWidget {
-  const _EpisodePickerSheet({required this.media, required this.tmdbService});
-
-  final MediaItem media;
-  final TmdbService tmdbService;
-
-  @override
-  State<_EpisodePickerSheet> createState() => _EpisodePickerSheetState();
-}
-
-class _EpisodePickerSheetState extends State<_EpisodePickerSheet> {
-  late int _seasonNumber;
-  List<Episode> _episodes = const <Episode>[];
-  bool _loadingEpisodes = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _seasonNumber = widget.media.seasons.isNotEmpty
-        ? widget.media.seasons.first.number
-        : 1;
-    _loadEpisodes();
-  }
-
-  Future<void> _loadEpisodes() async {
-    setState(() {
-      _loadingEpisodes = true;
-    });
-
-    final List<Episode> episodes = await widget.tmdbService.getSeasonEpisodes(
-      widget.media.tmdbId,
-      _seasonNumber,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _episodes = episodes;
-      _loadingEpisodes = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.x4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Choose Episode',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(color: AppColors.typeEmphasis),
-            ),
-            const SizedBox(height: AppSpacing.x4),
-            DropdownButtonFormField<int>(
-              value: _seasonNumber,
-              dropdownColor: AppColors.dropdownBackground,
-              items: widget.media.seasons.map((Season season) {
-                return DropdownMenuItem<int>(
-                  value: season.number,
-                  child: Text(season.title),
-                );
-              }).toList(),
-              onChanged: (int? value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _seasonNumber = value;
-                });
-                _loadEpisodes();
-              },
-            ),
-            const SizedBox(height: AppSpacing.x4),
-            if (_loadingEpisodes)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.x4),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _episodes.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final Episode episode = _episodes[index];
-                    return ListTile(
-                      minTileHeight: 48,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('E${episode.number} ${episode.title}'),
-                      subtitle: episode.overview.isEmpty
-                          ? null
-                          : Text(
-                              episode.overview,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      onTap: () {
-                        Navigator.of(context).pop(
-                          _EpisodeSelection(
-                            season: _seasonNumber,
-                            episode: episode.number,
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EpisodeSelection {
-  const _EpisodeSelection({required this.season, required this.episode});
-
-  final int season;
-  final int episode;
 }

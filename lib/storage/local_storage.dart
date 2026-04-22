@@ -141,12 +141,56 @@ class LocalStorage {
     await _bookmarksBox.clear();
   }
 
+  static List<Map<String, dynamic>> getEpisodeProgressEntries(
+    MediaItem mediaItem,
+  ) {
+    final String prefix = '${mediaItem.hiveKey()}-s';
+    final List<Map<String, dynamic>> items = _progressBox.values
+        .whereType<Map>()
+        .map((Map<dynamic, dynamic> value) => Map<String, dynamic>.from(value))
+        .where((Map<String, dynamic> item) {
+          final String mediaKey = '${item['mediaKey'] ?? ''}';
+          return mediaKey.startsWith(prefix);
+        })
+        .toList();
+
+    items.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+      return _readDateTime(
+        b['updatedAt'],
+      ).compareTo(_readDateTime(a['updatedAt']));
+    });
+
+    return items;
+  }
+
+  static Map<String, dynamic>? getLatestEpisodeProgress(MediaItem mediaItem) {
+    final List<Map<String, dynamic>> items = getEpisodeProgressEntries(
+      mediaItem,
+    );
+    return items.isEmpty ? null : items.first;
+  }
+
   static String mediaKey(MediaItem mediaItem, {int? season, int? episode}) {
     final String baseKey = mediaItem.hiveKey();
     if (season != null && episode != null) {
       return '$baseKey-s${season}e$episode';
     }
     return baseKey;
+  }
+
+  static EpisodeSelectionData? parseEpisodeSelection(String mediaKey) {
+    final RegExpMatch? match = RegExp(r'-s(\d+)e(\d+)$').firstMatch(mediaKey);
+    if (match == null) {
+      return null;
+    }
+
+    final int? season = int.tryParse(match.group(1)!);
+    final int? episode = int.tryParse(match.group(2)!);
+    if (season == null || episode == null) {
+      return null;
+    }
+
+    return EpisodeSelectionData(season: season, episode: episode);
   }
 
   static Box<Map> get _bookmarksBox => Hive.box<Map>(_bookmarksBoxName);
@@ -213,4 +257,11 @@ class LocalStorage {
     }
     return double.tryParse('$value') ?? 0;
   }
+}
+
+class EpisodeSelectionData {
+  const EpisodeSelectionData({required this.season, required this.episode});
+
+  final int season;
+  final int episode;
 }
