@@ -40,6 +40,7 @@ class StreamPlayback {
     required this.id,
     required this.type,
     required this.playlist,
+    required this.proxiedPlaylist,
     required this.playbackUrl,
     required this.playbackType,
     required this.selectedQuality,
@@ -53,6 +54,7 @@ class StreamPlayback {
   final String? id;
   final String? type;
   final String? playlist;
+  final String? proxiedPlaylist;
   final String? playbackUrl;
   final String? playbackType;
   final String? selectedQuality;
@@ -71,6 +73,9 @@ class StreamPlayback {
       id: _parseNullableString(json['id']),
       type: _parseNullableString(json['type']),
       playlist: _parseNullableString(json['playlist']),
+      proxiedPlaylist: _parseNullableString(
+        json['proxiedPlaylist'] ?? json['proxied_playlist'],
+      ),
       playbackUrl: _parseNullableString(json['playbackUrl']),
       playbackType: _parseNullableString(json['playbackType']),
       selectedQuality: _parseNullableString(json['selectedQuality']),
