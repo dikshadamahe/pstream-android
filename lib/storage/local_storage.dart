@@ -141,6 +141,10 @@ class LocalStorage {
     await _bookmarksBox.clear();
   }
 
+  static Future<void> clearHistory() async {
+    await _watchHistoryBox.clear();
+  }
+
   static List<Map<String, dynamic>> getEpisodeProgressEntries(
     MediaItem mediaItem,
   ) {

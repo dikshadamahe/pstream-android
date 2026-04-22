@@ -1,11 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/models/episode.dart';
 import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/models/season.dart';
-import 'package:pstream_android/services/tmdb_service.dart';
-import 'package:pstream_android/storage/local_storage.dart';
+import 'package:pstream_android/providers/storage_provider.dart';
+import 'package:pstream_android/providers/tmdb_provider.dart';
 import 'package:shimmer/shimmer.dart';
 
 class EpisodeSelection {
@@ -15,26 +16,21 @@ class EpisodeSelection {
   final int episode;
 }
 
-class EpisodeListSheet extends StatefulWidget {
+class EpisodeListSheet extends ConsumerStatefulWidget {
   const EpisodeListSheet({
     super.key,
     required this.media,
-    required this.tmdbService,
   });
 
   final MediaItem media;
-  final TmdbService tmdbService;
 
   @override
-  State<EpisodeListSheet> createState() => _EpisodeListSheetState();
+  ConsumerState<EpisodeListSheet> createState() => _EpisodeListSheetState();
 }
 
-class _EpisodeListSheetState extends State<EpisodeListSheet>
+class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
     with TickerProviderStateMixin {
   late final TabController _tabController;
-  final Map<int, List<Episode>> _episodesBySeason = <int, List<Episode>>{};
-  final Map<int, bool> _loadingBySeason = <int, bool>{};
-  EpisodeSelection? _currentSelection;
 
   @override
   void initState() {
@@ -45,8 +41,6 @@ class _EpisodeListSheetState extends State<EpisodeListSheet>
       vsync: this,
       initialIndex: initialIndex,
     )..addListener(_handleTabChange);
-    _currentSelection = _readCurrentSelection();
-    _loadSeason(widget.media.seasons[initialIndex].number);
   }
 
   @override
@@ -61,12 +55,13 @@ class _EpisodeListSheetState extends State<EpisodeListSheet>
     if (_tabController.indexIsChanging) {
       return;
     }
-
-    _loadSeason(widget.media.seasons[_tabController.index].number);
+    setState(() {});
   }
 
   int _initialSeasonIndex() {
-    final EpisodeSelection? selection = _readCurrentSelection();
+    final LatestEpisodeSelection? selection = ref.read(
+      latestEpisodeSelectionProvider(widget.media),
+    );
     if (selection == null) {
       return 0;
     }
@@ -77,47 +72,23 @@ class _EpisodeListSheetState extends State<EpisodeListSheet>
     return index >= 0 ? index : 0;
   }
 
-  EpisodeSelection? _readCurrentSelection() {
-    final Map<String, dynamic>? latest = LocalStorage.getLatestEpisodeProgress(
-      widget.media,
-    );
-    final String? mediaKey = latest?['mediaKey'] as String?;
-    return mediaKey == null
-        ? null
-        : LocalStorage.parseEpisodeSelection(mediaKey);
-  }
-
-  Future<void> _loadSeason(int seasonNumber) async {
-    if (_episodesBySeason.containsKey(seasonNumber) ||
-        _loadingBySeason[seasonNumber] == true) {
-      return;
-    }
-
-    setState(() {
-      _loadingBySeason[seasonNumber] = true;
-    });
-
-    final List<Episode> episodes = await widget.tmdbService.getSeasonEpisodes(
-      widget.media.tmdbId,
-      seasonNumber,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _episodesBySeason[seasonNumber] = episodes;
-      _loadingBySeason[seasonNumber] = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final int seasonNumber = widget.media.seasons[_tabController.index].number;
+    final AsyncValue<List<Episode>> seasonEpisodes = ref.watch(
+      seasonEpisodesProvider(
+        SeasonEpisodesRequest(
+          showId: widget.media.tmdbId,
+          seasonNum: seasonNumber,
+        ),
+      ),
+    );
+    final LatestEpisodeSelection? currentSelection = ref.watch(
+      latestEpisodeSelectionProvider(widget.media),
+    );
     final List<Episode> episodes =
-        _episodesBySeason[seasonNumber] ?? const <Episode>[];
-    final bool isLoading = _loadingBySeason[seasonNumber] == true;
+        seasonEpisodes.value ?? const <Episode>[];
+    final bool isLoading = seasonEpisodes.isLoading;
 
     return DraggableScrollableSheet(
       expand: false,
@@ -169,20 +140,21 @@ class _EpisodeListSheetState extends State<EpisodeListSheet>
                         itemCount: episodes.length,
                         itemBuilder: (BuildContext context, int index) {
                           final Episode episode = episodes[index];
-                          final String mediaKey = LocalStorage.mediaKey(
-                            widget.media,
-                            season: seasonNumber,
-                            episode: episode.number,
+                          final Map<String, dynamic>? progress = ref.watch(
+                            progressEntryProvider(
+                              ProgressRequest(
+                                mediaItem: widget.media,
+                                season: seasonNumber,
+                                episode: episode.number,
+                              ),
+                            ),
                           );
-                          final Map<String, dynamic>? progress =
-                              LocalStorage.getProgress(mediaKey);
                           final bool isCurrent =
-                              _currentSelection?.season == seasonNumber &&
-                              _currentSelection?.episode == episode.number;
+                              currentSelection?.season == seasonNumber &&
+                              currentSelection?.episode == episode.number;
 
                           return _EpisodeRow(
                             episode: episode,
-                            mediaKey: mediaKey,
                             progress: progress,
                             isCurrent: isCurrent,
                             onTap: () {
@@ -208,14 +180,12 @@ class _EpisodeListSheetState extends State<EpisodeListSheet>
 class _EpisodeRow extends StatelessWidget {
   const _EpisodeRow({
     required this.episode,
-    required this.mediaKey,
     required this.progress,
     required this.isCurrent,
     required this.onTap,
   });
 
   final Episode episode;
-  final String mediaKey;
   final Map<String, dynamic>? progress;
   final bool isCurrent;
   final VoidCallback onTap;
@@ -244,16 +214,17 @@ class _EpisodeRow extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppSpacing.x3),
                   child: SizedBox(
-                    width: 120,
-                    height: 68,
+                    width: AppSpacing.x30,
+                    height: AppSpacing.x16,
                     child: episode.stillPath == null
                         ? const _StillPlaceholder()
                         : CachedNetworkImage(
                             imageUrl:
                                 'https://image.tmdb.org/t/p/w300${episode.stillPath}',
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => const _StillPlaceholder(),
-                            errorWidget: (_, __, ___) =>
+                            placeholder: (_, placeholderUrl) =>
+                                const _StillPlaceholder(),
+                            errorWidget: (_, error, stackTrace) =>
                                 const _StillPlaceholder(),
                           ),
                   ),
@@ -317,14 +288,17 @@ class _EpisodeRow extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(
                                   AppSpacing.x1,
                                 ),
-                                child: LinearProgressIndicator(
-                                  minHeight: AppSpacing.x1,
-                                  value: ratio.clamp(0.0, 1.0),
-                                  backgroundColor: AppColors.mediaCardBarColor,
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
-                                        AppColors.mediaCardBarFillColor,
-                                      ),
+                                child: RepaintBoundary(
+                                  child: LinearProgressIndicator(
+                                    minHeight: AppSpacing.x1,
+                                    value: ratio.clamp(0.0, 1.0),
+                                    backgroundColor:
+                                        AppColors.mediaCardBarColor,
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                      AppColors.mediaCardBarFillColor,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

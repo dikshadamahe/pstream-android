@@ -1,33 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/models/media_item.dart';
-import 'package:pstream_android/services/tmdb_service.dart';
+import 'package:pstream_android/providers/tmdb_provider.dart';
 import 'package:pstream_android/widgets/media_card.dart';
 
-class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key, this.tmdbService = const TmdbService()});
-
-  final TmdbService tmdbService;
+class SearchScreen extends ConsumerStatefulWidget {
+  const SearchScreen({super.key});
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   Timer? _debounce;
-  bool _isLoading = false;
-  List<MediaItem> _results = const <MediaItem>[];
-  late Future<List<MediaItem>> _suggestionsFuture;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _suggestionsFuture = widget.tmdbService.getTrending('movie', 'week');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -48,34 +44,22 @@ class _SearchScreenState extends State<SearchScreen> {
   void _onQueryChanged() {
     _debounce?.cancel();
     final String query = _controller.text.trim();
-    if (query.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _results = const <MediaItem>[];
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    _debounce = Timer(const Duration(milliseconds: 400), () async {
-      final List<MediaItem> results = await widget.tmdbService.search(query);
-      if (!mounted || query != _controller.text.trim()) {
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) {
         return;
       }
-
       setState(() {
-        _results = results;
-        _isLoading = false;
+        _query = query;
       });
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool hasQuery = _controller.text.trim().isNotEmpty;
+    final bool hasQuery = _query.isNotEmpty;
+    final AsyncValue<List<MediaItem>> data = hasQuery
+        ? ref.watch(searchProvider(_query))
+        : ref.watch(trendingMoviesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
@@ -101,23 +85,13 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
       ),
-      body: hasQuery
-          ? _SearchResultsGrid(items: _results, isLoading: _isLoading)
-          : FutureBuilder<List<MediaItem>>(
-              future: _suggestionsFuture,
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<List<MediaItem>> snapshot,
-                  ) {
-                    return _SearchResultsGrid(
-                      title: 'Trending Suggestions',
-                      items: snapshot.data ?? const <MediaItem>[],
-                      isLoading:
-                          snapshot.connectionState != ConnectionState.done,
-                    );
-                  },
-            ),
+      body: SafeArea(
+        child: _SearchResultsGrid(
+          title: hasQuery ? null : 'Trending Suggestions',
+          items: data.value ?? const <MediaItem>[],
+          isLoading: data.isLoading,
+        ),
+      ),
     );
   }
 }
@@ -138,7 +112,7 @@ class _SearchResultsGrid extends StatelessWidget {
     final int columns = switch (windowClass(context)) {
       WindowClass.compact => 2,
       WindowClass.medium => 3,
-      WindowClass.expanded => 3,
+      WindowClass.expanded => 4,
     };
 
     final int itemCount = isLoading ? columns * 3 : items.length;

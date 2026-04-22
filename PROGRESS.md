@@ -1,7 +1,7 @@
 # Progress
 
 ## Current Status
-Flutter Android scaffold is in place, Oracle VM backend stack is live, Dev 1 has now added the first real player layer (`player_screen.dart`, `player_controls.dart`) with `media_kit` playback bootstrap, immersive landscape chrome, periodic Hive progress saves, resume seeking, source re-scrape sheet, and next-episode affordance, while Dev 2 has added the TMDB data/config foundation (`app_config.dart`, `media_item.dart`, `season.dart`, `episode.dart`, `tmdb_service.dart`). `code-review-graph` is built, but `get_minimal_context_tool` is broken in this project environment, so shallow `get_review_context_tool` is the required fallback. Next MVP focus shifts to remaining bootstrap/integration work: Dev 2 `main.dart`/`router.dart`, plus Dev 1's `GitHub Actions` APK workflow.
+Flutter Android scaffold is in place, Oracle VM backend stack is live, and the app bootstrap is now wired end-to-end: Dev 2 bootstrap files (`main.dart`, `router.dart`) are added with `MaterialApp.router`, `go_router`, Hive startup, and Riverpod providers, while Dev 1's scraping/player flow remains connected through routed detail -> scraping -> player navigation with resume handoff. Minimal `settings_screen.dart` and `history_screen.dart` stubs are now present. The full MVP code-review checklist pass is complete for the changed app files, with UI state/service/storage access moved behind Riverpod providers and `flutter analyze` clean as of 2026-04-22. `code-review-graph` is built, but `get_minimal_context_tool` is broken in this project environment, so shallow `get_review_context_tool` is the required fallback. Remaining MVP focus is integration verification plus Dev 1's `GitHub Actions` APK workflow.
 
 ## MVP Checklist
 
@@ -21,19 +21,20 @@ Flutter Android scaffold is in place, Oracle VM backend stack is live, Dev 1 has
 
 ### Dev 2 (Diksha) - UI + Data
 - [x] flutter create + pubspec.yaml
-- [ ] main.dart (MediaKit.init + Hive + ProviderScope)
+- [x] main.dart (MediaKit.init + Hive + ProviderScope)
 - [ ] app_theme.dart (all AppColors from themes/default.ts)
 - [x] breakpoints.dart
 - [x] MediaItem model
 - [x] tmdb_service.dart
 - [x] local_storage.dart
-- [ ] router.dart
+- [x] router.dart
 - [x] home_screen.dart
 - [x] media_card.dart
 - [x] search_screen.dart
 - [x] detail_screen.dart
 
 ### Integration
+- [x] Full MVP code review checklist pass
 - [ ] End-to-end: Search -> Detail -> Play -> Video plays
 - [ ] Resume works
 - [ ] Bookmark works
@@ -69,3 +70,5 @@ Flutter Android scaffold is in place, Oracle VM backend stack is live, Dev 1 has
 | 2026-04-22 | Diksha | Added `search_screen.dart` with debounced TMDB search and trending suggestions, upgraded `detail_screen.dart` to fetch rich metadata with hero/backdrop/resume/bookmark flows, and expanded `MediaItem` storage support for genres and cast. |
 | 2026-04-22 | Pracheer | Hardened Dev 1 scraping flow: SSE `stream_service.dart` timeout/fallback behavior, `scraping_screen.dart` source state + manual retry handling, and animated `scrape_source_card.dart` status UI with `RepaintBoundary` around each animated status circle. |
 | 2026-04-22 | Pracheer | Added Dev 1 player bootstrap: `player_screen.dart` now opens streams with headers through `media_kit`, applies immersive landscape playback chrome, restores progress to Hive, and routes to re-scrape or next-episode flows; `player_controls.dart` adds the glass overlay, custom seek bar, subtitle toggle, source sheet entry, and next-episode CTA. |
+| 2026-04-22 | Diksha/Pracheer | Wired app bootstrap and routing: replaced scaffold `main.dart` with Hive + `MediaKit` startup, added `go_router` config in `router.dart`, created Riverpod provider files, routed detail/scrape/player flows with typed extras and resume handoff, and added minimal `settings_screen.dart` plus `history_screen.dart` stub. |
+| 2026-04-22 | Pracheer | Completed full MVP code-review checklist pass on changed files: moved UI service/storage access behind Riverpod providers, verified direct-import context with `code-review-graph`, fixed repaint/touch/SafeArea/network-image checks, and confirmed `flutter analyze` has no issues. |

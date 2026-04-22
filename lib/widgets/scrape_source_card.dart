@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:pstream_android/config/app_theme.dart';
 
 enum ScrapeStatus {
   waiting,
@@ -20,22 +21,23 @@ class ScrapeSourceCard extends StatelessWidget {
   final String sourceName;
   final ScrapeStatus status;
   final List<ScrapeEmbedItem> embeds;
+  static const double estimatedHeight = AppSpacing.x16 + AppSpacing.x12;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.x2),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.x4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
                 _StatusCircle(status: status),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.x3),
                 Expanded(
                   child: Text(
                     sourceName,
@@ -45,24 +47,26 @@ class ScrapeSourceCard extends StatelessWidget {
               ],
             ),
             if (embeds.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.x3),
               Padding(
-                padding: const EdgeInsets.only(left: 36),
+                padding: const EdgeInsets.only(left: AppSpacing.x10),
                 child: Column(
                   children: List<Widget>.generate(embeds.length, (int index) {
                     final ScrapeEmbedItem embed = embeds[index];
                     return Padding(
                       padding: EdgeInsets.only(
-                        bottom: index == embeds.length - 1 ? 0 : 10,
+                        bottom: index == embeds.length - 1
+                            ? AppSpacing.x0
+                            : AppSpacing.x2,
                       ),
                       child: Row(
                         children: <Widget>[
                           _StatusCircle(
                             status: embed.status,
-                            size: 18,
-                            strokeWidth: 2.5,
+                            size: AppSpacing.x5,
+                            strokeWidth: AppSpacing.x1,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.x2),
                           Expanded(
                             child: Text(
                               embed.name,
@@ -96,8 +100,8 @@ class ScrapeEmbedItem {
 class _StatusCircle extends StatelessWidget {
   const _StatusCircle({
     required this.status,
-    this.size = 24,
-    this.strokeWidth = 3,
+    this.size = AppSpacing.x6,
+    this.strokeWidth = AppSpacing.x1,
   });
 
   final ScrapeStatus status;
@@ -110,7 +114,7 @@ class _StatusCircle extends StatelessWidget {
       dimension: size,
       child: switch (status) {
         ScrapeStatus.waiting => _BaseCircle(
-            color: Colors.grey.shade500,
+            color: AppColors.videoScrapingNoresult,
             strokeWidth: strokeWidth,
             child: const SizedBox.shrink(),
           ),
@@ -119,33 +123,33 @@ class _StatusCircle extends StatelessWidget {
             strokeWidth: strokeWidth,
           ),
         ScrapeStatus.success => _BaseCircle(
-            color: Colors.green,
+            color: AppColors.videoScrapingSuccess,
             strokeWidth: strokeWidth,
-            fillColor: Colors.green,
+            fillColor: AppColors.videoScrapingSuccess,
             child: Icon(
               Icons.check,
               size: size * 0.6,
-              color: Colors.white,
+              color: AppColors.typeEmphasis,
             ),
           ),
         ScrapeStatus.failure => _BaseCircle(
-            color: Colors.red,
+            color: AppColors.videoScrapingError,
             strokeWidth: strokeWidth,
-            fillColor: Colors.red,
+            fillColor: AppColors.videoScrapingError,
             child: Icon(
               Icons.close,
               size: size * 0.6,
-              color: Colors.white,
+              color: AppColors.typeEmphasis,
             ),
           ),
         ScrapeStatus.notfound => _BaseCircle(
-            color: Colors.red.shade300,
+            color: AppColors.videoScrapingError,
             strokeWidth: strokeWidth,
-            fillColor: Colors.red.shade300,
+            fillColor: AppColors.videoScrapingError,
             child: Icon(
               Icons.close,
               size: size * 0.6,
-              color: Colors.white,
+              color: AppColors.typeEmphasis,
             ),
           ),
       },
@@ -170,7 +174,7 @@ class _PendingCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFF8F5BFF),
+          color: AppColors.videoScrapingLoading,
           width: strokeWidth,
         ),
       ),
@@ -179,9 +183,9 @@ class _PendingCircle extends StatelessWidget {
           shape: BoxShape.circle,
           gradient: SweepGradient(
             colors: <Color>[
-              const Color(0xFF8F5BFF).withValues(alpha: 0.15),
-              const Color(0xFF8F5BFF),
-              const Color(0xFF8F5BFF).withValues(alpha: 0.15),
+              AppColors.videoScrapingLoading.withValues(alpha: 0.15),
+              AppColors.videoScrapingLoading,
+              AppColors.videoScrapingLoading.withValues(alpha: 0.15),
             ],
           ),
         ),
@@ -190,8 +194,8 @@ class _PendingCircle extends StatelessWidget {
     )
         .animate(onPlay: (AnimationController controller) => controller.repeat())
         .shimmer(
-          duration: 900.ms,
-          color: const Color(0xFFB9A1FF),
+          duration: 1.seconds,
+          color: AppColors.typeLink,
         );
   }
 }

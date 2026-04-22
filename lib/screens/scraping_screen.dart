@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/models/scrape_event.dart';
 import 'package:pstream_android/models/stream_result.dart';
+import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/player_screen.dart';
 import 'package:pstream_android/services/stream_service.dart';
 import 'package:pstream_android/widgets/scrape_source_card.dart';
@@ -13,32 +17,34 @@ class ScrapingScreenArgs {
     required this.mediaItem,
     this.season,
     this.episode,
+    this.resumeFrom,
   });
 
   final MediaItem mediaItem;
   final int? season;
   final int? episode;
+  final int? resumeFrom;
 }
 
-class ScrapingScreen extends StatefulWidget {
+class ScrapingScreen extends ConsumerStatefulWidget {
   const ScrapingScreen({
     super.key,
     required this.mediaItem,
     this.season,
     this.episode,
-    this.streamService = const StreamService(),
+    this.resumeFrom,
   });
 
   final MediaItem mediaItem;
   final int? season;
   final int? episode;
-  final StreamService streamService;
+  final int? resumeFrom;
 
   @override
-  State<ScrapingScreen> createState() => _ScrapingScreenState();
+  ConsumerState<ScrapingScreen> createState() => _ScrapingScreenState();
 }
 
-class _ScrapingScreenState extends State<ScrapingScreen> {
+class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<String, ScrapeStatus> _statuses = <String, ScrapeStatus>{};
   final Map<String, _ScrapeNode> _nodes = <String, _ScrapeNode>{};
@@ -46,6 +52,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
   final Map<String, String> _embedNameByScraperId = <String, String>{};
 
   StreamSubscription<ScrapeEvent>? _scrapeSubscription;
+  late final StreamService _streamService;
   bool _isLoading = true;
   bool _allFailure = false;
   String? _failureMessage;
@@ -54,6 +61,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
   @override
   void initState() {
     super.initState();
+    _streamService = ref.read(streamServiceProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _primeCatalogAndStart();
     });
@@ -68,7 +76,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
 
   Future<void> _primeCatalogAndStart() async {
     try {
-      final ScrapeCatalog catalog = await widget.streamService.fetchCatalog();
+      final ScrapeCatalog catalog = await _streamService.fetchCatalog();
       if (!mounted) {
         return;
       }
@@ -91,7 +99,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
 
   void _startStreamScrape() {
     _scrapeSubscription?.cancel();
-    _scrapeSubscription = widget.streamService
+    _scrapeSubscription = _streamService
         .scrapeStream(
           widget.mediaItem,
           season: widget.season,
@@ -296,7 +304,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
       }
 
       _scrollController.animateTo(
-        index * 108,
+        index * ScrapeSourceCard.estimatedHeight,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
@@ -322,7 +330,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
               }
 
               return ListTile(
-                minTileHeight: 48,
+                minTileHeight: AppSpacing.x12,
                 title: Text(node.name),
                 onTap: () => Navigator.of(context).pop(id),
               );
@@ -351,7 +359,7 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
     _scrollToSource(sourceId);
 
     try {
-      final StreamResult? result = await widget.streamService.scrapeSingleSource(
+      final StreamResult? result = await _streamService.scrapeSingleSource(
         widget.mediaItem,
         sourceId: sourceId,
         season: widget.season,
@@ -399,16 +407,14 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
       return;
     }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => PlayerScreen(
-          args: PlayerScreenArgs(
-            mediaItem: widget.mediaItem,
-            streamResult: result,
-            season: widget.season,
-            episode: widget.episode,
-          ),
-        ),
+    context.pushReplacement(
+      '/player',
+      extra: PlayerScreenArgs(
+        mediaItem: widget.mediaItem,
+        streamResult: result,
+        season: widget.season,
+        episode: widget.episode,
+        resumeFrom: widget.resumeFrom,
       ),
     );
   }
@@ -419,63 +425,74 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
       appBar: AppBar(
         title: Text('Scraping ${widget.mediaItem.title}'),
       ),
-      body: Column(
-        children: <Widget>[
-          if (_isLoading || _currentPendingSourceId != null)
-            const LinearProgressIndicator(minHeight: 2),
-          Expanded(
-            child: _sourceOrder.isEmpty
-                ? Center(
-                    child: Text(
-                      _isLoading ? 'Preparing sources...' : 'No sources found',
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _sourceOrder.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final String sourceId = _sourceOrder[index];
-                      final _ScrapeNode? source = _nodes[sourceId];
-                      if (source == null) {
-                        return const SizedBox.shrink();
-                      }
-
-                      return ScrapeSourceCard(
-                        sourceName: source.name,
-                        status: _statuses[sourceId] ?? ScrapeStatus.waiting,
-                        embeds: source.embedIds
-                            .map(
-                              (String embedId) => ScrapeEmbedItem(
-                                name: _nodes[embedId]?.name ?? embedId,
-                                status: _statuses[embedId] ??
-                                    ScrapeStatus.waiting,
-                              ),
-                            )
-                            .toList(),
-                      );
-                    },
-                  ),
-          ),
-          if (_allFailure)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text(
-                    _failureMessage ?? 'No sources found',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _showManualPicker,
-                    child: const Text('Try Manually'),
-                  ),
-                ],
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            if (_isLoading || _currentPendingSourceId != null)
+              const RepaintBoundary(
+                child: LinearProgressIndicator(minHeight: AppSpacing.x1),
               ),
-            ),
-        ],
+            Expanded(
+              child: _sourceOrder.isEmpty
+                  ? Center(
+                      child: Text(
+                        _isLoading
+                            ? 'Preparing sources...'
+                            : 'No sources found',
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(AppSpacing.x4),
+                      itemCount: _sourceOrder.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final String sourceId = _sourceOrder[index];
+                        final _ScrapeNode? source = _nodes[sourceId];
+                        if (source == null) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return ScrapeSourceCard(
+                          sourceName: source.name,
+                          status: _statuses[sourceId] ?? ScrapeStatus.waiting,
+                          embeds: source.embedIds
+                              .map(
+                                (String embedId) => ScrapeEmbedItem(
+                                  name: _nodes[embedId]?.name ?? embedId,
+                                  status: _statuses[embedId] ??
+                                      ScrapeStatus.waiting,
+                                ),
+                              )
+                              .toList(),
+                        );
+                      },
+                    ),
+              ),
+            if (_allFailure)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.x4,
+                  AppSpacing.x0,
+                  AppSpacing.x4,
+                  AppSpacing.x6,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      _failureMessage ?? 'No sources found',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.x3),
+                    FilledButton(
+                      onPressed: _showManualPicker,
+                      child: const Text('Try Manually'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

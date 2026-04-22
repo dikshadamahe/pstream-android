@@ -56,11 +56,7 @@ class CategoryRow extends StatelessWidget {
   }
 
   double _heightFor(BuildContext context) {
-    return switch (windowClass(context)) {
-      WindowClass.compact => 230,
-      WindowClass.medium => 265,
-      WindowClass.expanded => 310,
-    };
+    return MediaCard.cardHeightFor(context) + AppSpacing.x6;
   }
 
   int _placeholderCount(BuildContext context) {

@@ -1,35 +1,36 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/models/media_item.dart';
+import 'package:pstream_android/providers/storage_provider.dart';
 import 'package:pstream_android/screens/detail_screen.dart';
-import 'package:pstream_android/storage/local_storage.dart';
 import 'package:shimmer/shimmer.dart';
 
-class MediaCard extends StatelessWidget {
+class MediaCard extends ConsumerWidget {
   const MediaCard({super.key, required this.mediaItem});
 
   final MediaItem mediaItem;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final _MediaCardSize size = _cardSize(context);
-    final Map<String, dynamic>? progress = LocalStorage.getProgress(
-      LocalStorage.mediaKey(mediaItem),
+    final Map<String, dynamic>? progress = ref.watch(
+      progressEntryProvider(ProgressRequest(mediaItem: mediaItem)),
     );
     final double progressRatio = _progressRatio(progress);
     final bool showProgress = progressRatio >= 0.05 && progressRatio <= 0.90;
-    final bool isBookmarked = LocalStorage.isBookmarked(mediaItem);
+    final bool isBookmarked = ref.watch(bookmarkStatusProvider(mediaItem));
 
     return RepaintBoundary(
       child: SizedBox(
         width: size.width,
         height: size.height + _titleAreaHeight,
         child: Material(
-          color: Colors.transparent,
+          color: AppColors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(AppSpacing.x4),
             splashColor: AppColors.mediaCardHoverAccent.withValues(alpha: 0.35),
@@ -43,7 +44,7 @@ class MediaCard extends StatelessWidget {
               }
 
               if (GoRouter.maybeOf(context) case final GoRouter router) {
-                router.push('/detail', extra: mediaItem);
+                router.push('/detail/${mediaItem.tmdbId}', extra: mediaItem);
                 return;
               }
 
@@ -71,9 +72,10 @@ class MediaCard extends StatelessWidget {
                                 : CachedNetworkImage(
                                     imageUrl: mediaItem.posterUrl()!,
                                     fit: BoxFit.cover,
-                                    placeholder: (_, __) =>
+                                    placeholder: (_, placeholderUrl) =>
                                         const _MediaCardPosterPlaceholder(),
-                                    errorWidget: (_, __, ___) =>
+                                    errorWidget:
+                                        (_, error, stackTrace) =>
                                         const _MediaCardPosterPlaceholder(),
                                   ),
                           ),
@@ -84,8 +86,8 @@ class MediaCard extends StatelessWidget {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: <Color>[
-                                Colors.transparent,
-                                Colors.transparent,
+                                AppColors.transparent,
+                                AppColors.transparent,
                                 AppColors.blackC50,
                               ],
                               stops: <double>[0.0, 0.5, 1.0],
@@ -124,16 +126,19 @@ class MediaCard extends StatelessWidget {
                             left: AppSpacing.x3,
                             right: AppSpacing.x3,
                             bottom: AppSpacing.x3,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                AppSpacing.x1,
-                              ),
-                              child: LinearProgressIndicator(
-                                minHeight: AppSpacing.x1,
-                                value: progressRatio.clamp(0.0, 1.0),
-                                backgroundColor: AppColors.mediaCardBarColor,
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                  AppColors.mediaCardBarFillColor,
+                            child: RepaintBoundary(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.x1,
+                                ),
+                                child: LinearProgressIndicator(
+                                  minHeight: AppSpacing.x1,
+                                  value: progressRatio.clamp(0.0, 1.0),
+                                  backgroundColor: AppColors.mediaCardBarColor,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                    AppColors.mediaCardBarFillColor,
+                                  ),
                                 ),
                               ),
                             ),
@@ -150,34 +155,42 @@ class MediaCard extends StatelessWidget {
     );
   }
 
-  static const double _titleAreaHeight = 0;
+  static const double _titleAreaHeight = AppSpacing.x0;
 
-  _MediaCardSize _cardSize(BuildContext context) {
-    return switch (windowClass(context)) {
-      WindowClass.compact => const _MediaCardSize(130, 195),
-      WindowClass.medium => const _MediaCardSize(150, 225),
-      WindowClass.expanded => const _MediaCardSize(180, 270),
+  static double cardHeightFor(BuildContext context) {
+    return _cardSize(context).height;
+  }
+
+  static _MediaCardSize _cardSize(BuildContext context) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final double width = switch (windowClass(context)) {
+      WindowClass.compact => screenWidth * 0.34,
+      WindowClass.medium => screenWidth * 0.22,
+      WindowClass.expanded => screenWidth * 0.16,
     };
+    return _MediaCardSize(width, width * _posterAspectHeight);
   }
 
-  double _progressRatio(Map<String, dynamic>? progress) {
-    if (progress == null) {
-      return 0;
-    }
+  static const double _posterAspectHeight = 1.5;
+}
 
-    final dynamic cachedRatio = progress['watchedRatio'];
-    if (cachedRatio is num) {
-      return cachedRatio.toDouble();
-    }
-
-    final int position = int.tryParse('${progress['positionSecs']}') ?? 0;
-    final int duration = int.tryParse('${progress['durationSecs']}') ?? 0;
-    if (duration <= 0) {
-      return 0;
-    }
-
-    return position / duration;
+double _progressRatio(Map<String, dynamic>? progress) {
+  if (progress == null) {
+    return 0;
   }
+
+  final dynamic cachedRatio = progress['watchedRatio'];
+  if (cachedRatio is num) {
+    return cachedRatio.toDouble();
+  }
+
+  final int position = int.tryParse('${progress['positionSecs']}') ?? 0;
+  final int duration = int.tryParse('${progress['durationSecs']}') ?? 0;
+  if (duration <= 0) {
+    return 0;
+  }
+
+  return position / duration;
 }
 
 class _MediaCardPosterPlaceholder extends StatelessWidget {
@@ -198,4 +211,26 @@ class _MediaCardSize {
 
   final double width;
   final double height;
+}
+
+class MediaCardSkeleton extends StatelessWidget {
+  const MediaCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final _MediaCardSize size = MediaCard._cardSize(context);
+
+    return SizedBox(
+      width: size.width,
+      height: size.height,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.x4),
+        child: Shimmer.fromColors(
+          baseColor: AppColors.mediaCardHoverBackground,
+          highlightColor: AppColors.mediaCardHoverAccent,
+          child: const ColoredBox(color: AppColors.mediaCardHoverBackground),
+        ),
+      ),
+    );
+  }
 }

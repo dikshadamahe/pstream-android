@@ -119,7 +119,7 @@ class PlayerControls extends StatelessWidget {
                           onPressed: () {
                             onSeekBack();
                           },
-                          iconSize: 34,
+                          iconSize: AppSpacing.x8,
                           icon: const Icon(Icons.replay_10_rounded),
                         ),
                         const SizedBox(width: AppSpacing.x2),
@@ -136,7 +136,7 @@ class PlayerControls extends StatelessWidget {
                             isPlaying
                                 ? Icons.pause_rounded
                                 : Icons.play_arrow_rounded,
-                            size: 40,
+                            size: AppSpacing.x10,
                           ),
                         ),
                         const SizedBox(width: AppSpacing.x2),
@@ -144,7 +144,7 @@ class PlayerControls extends StatelessWidget {
                           onPressed: () {
                             onSeekForward();
                           },
-                          iconSize: 34,
+                          iconSize: AppSpacing.x8,
                           icon: const Icon(Icons.forward_10_rounded),
                         ),
                       ],
@@ -280,75 +280,80 @@ class _SeekBar extends StatelessWidget {
         ? 0
         : (position.inMilliseconds / totalMs).clamp(0, 1).toDouble();
 
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (TapDownDetails details) {
-            final double fraction =
-                (details.localPosition.dx / constraints.maxWidth)
-                    .clamp(0, 1)
-                    .toDouble();
-            onSeek(fraction);
-          },
-          onHorizontalDragUpdate: (DragUpdateDetails details) {
-            final double fraction =
-                (details.localPosition.dx / constraints.maxWidth)
-                    .clamp(0, 1)
-                    .toDouble();
-            onSeek(fraction);
-          },
-          child: SizedBox(
-            height: 24,
-            child: Center(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  Container(
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: AppColors.progressBackground.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(AppSpacing.x2),
-                    ),
-                  ),
-                  FractionallySizedBox(
-                    widthFactor: bufferedFraction,
-                    child: Container(
-                      height: 6,
+    return RepaintBoundary(
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (TapDownDetails details) {
+              final double fraction =
+                  (details.localPosition.dx / constraints.maxWidth)
+                      .clamp(0, 1)
+                      .toDouble();
+              onSeek(fraction);
+            },
+            onHorizontalDragUpdate: (DragUpdateDetails details) {
+              final double fraction =
+                  (details.localPosition.dx / constraints.maxWidth)
+                      .clamp(0, 1)
+                      .toDouble();
+              onSeek(fraction);
+            },
+            child: SizedBox(
+              height: AppSpacing.x12,
+              child: Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Container(
+                      height: AppSpacing.x1,
                       decoration: BoxDecoration(
-                        color: AppColors.semanticSilverC400,
+                        color: AppColors.progressBackground.withValues(
+                          alpha: 0.35,
+                        ),
                         borderRadius: BorderRadius.circular(AppSpacing.x2),
                       ),
                     ),
-                  ),
-                  FractionallySizedBox(
-                    widthFactor: playedFraction,
-                    child: Container(
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: AppColors.progressFilled,
-                        borderRadius: BorderRadius.circular(AppSpacing.x2),
+                    FractionallySizedBox(
+                      widthFactor: bufferedFraction,
+                      child: Container(
+                        height: AppSpacing.x1,
+                        decoration: BoxDecoration(
+                          color: AppColors.semanticSilverC400,
+                          borderRadius: BorderRadius.circular(AppSpacing.x2),
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: (constraints.maxWidth * playedFraction) - 8,
-                    top: -5,
-                    child: Container(
-                      width: 16,
-                      height: 16,
-                      decoration: const BoxDecoration(
-                        color: AppColors.progressFilled,
-                        shape: BoxShape.circle,
+                    FractionallySizedBox(
+                      widthFactor: playedFraction,
+                      child: Container(
+                        height: AppSpacing.x1,
+                        decoration: BoxDecoration(
+                          color: AppColors.progressFilled,
+                          borderRadius: BorderRadius.circular(AppSpacing.x2),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      left: (constraints.maxWidth * playedFraction) -
+                          AppSpacing.x2,
+                      top: -AppSpacing.x2,
+                      child: Container(
+                        width: AppSpacing.x4,
+                        height: AppSpacing.x4,
+                        decoration: const BoxDecoration(
+                          color: AppColors.progressFilled,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -401,7 +406,10 @@ class _GlassContainer extends StatelessWidget {
     return ClipRRect(
       borderRadius: effectiveRadius,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ImageFilter.blur(
+          sigmaX: AppSpacing.x5,
+          sigmaY: AppSpacing.x5,
+        ),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: AppColors.videoContextBackground.withValues(alpha: 0.62),

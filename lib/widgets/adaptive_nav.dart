@@ -18,10 +18,7 @@ class AdaptiveNav extends StatelessWidget {
   static const List<_AdaptiveNavDestination> _destinations = [
     _AdaptiveNavDestination(label: 'Home', icon: Icons.home_outlined),
     _AdaptiveNavDestination(label: 'Search', icon: Icons.search_rounded),
-    _AdaptiveNavDestination(
-      label: 'My List',
-      icon: Icons.bookmark_border_rounded,
-    ),
+    _AdaptiveNavDestination(label: 'History', icon: Icons.history_rounded),
     _AdaptiveNavDestination(label: 'Settings', icon: Icons.settings_outlined),
   ];
 
@@ -59,36 +56,39 @@ class AdaptiveNav extends StatelessWidget {
       backgroundColor: AppColors.backgroundMain,
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: currentIndex,
-            onDestinationSelected: onDestinationSelected,
-            extended: false,
-            labelType: NavigationRailLabelType.all,
-            backgroundColor: AppColors.backgroundSecondary,
-            indicatorColor: AppColors.buttonsToggle,
-            selectedIconTheme: IconThemeData(
-              color: AppColors.typeEmphasis,
-              size: railIconSize,
+          SafeArea(
+            child: NavigationRail(
+              selectedIndex: currentIndex,
+              onDestinationSelected: onDestinationSelected,
+              extended: false,
+              labelType: NavigationRailLabelType.all,
+              backgroundColor: AppColors.backgroundSecondary,
+              indicatorColor: AppColors.buttonsToggle,
+              selectedIconTheme: IconThemeData(
+                color: AppColors.typeEmphasis,
+                size: railIconSize,
+              ),
+              unselectedIconTheme: IconThemeData(
+                color: AppColors.typeSecondary,
+                size: railIconSize,
+              ),
+              selectedLabelTextStyle: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: AppColors.typeEmphasis),
+              unselectedLabelTextStyle: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(color: AppColors.typeSecondary),
+              destinations: _destinations
+                  .map(
+                    (destination) => NavigationRailDestination(
+                      icon: Icon(destination.icon),
+                      selectedIcon: Icon(destination.icon),
+                      label: Text(destination.label),
+                    ),
+                  )
+                  .toList(growable: false),
             ),
-            unselectedIconTheme: IconThemeData(
-              color: AppColors.typeSecondary,
-              size: railIconSize,
-            ),
-            selectedLabelTextStyle: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: AppColors.typeEmphasis),
-            unselectedLabelTextStyle: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: AppColors.typeSecondary),
-            destinations: _destinations
-                .map(
-                  (destination) => NavigationRailDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.icon),
-                    label: Text(destination.label),
-                  ),
-                )
-                .toList(growable: false),
           ),
           const SizedBox(
             width: AppSpacing.x1,

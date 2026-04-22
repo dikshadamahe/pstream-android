@@ -1,53 +1,33 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
-import 'package:pstream_android/models/episode.dart';
 import 'package:pstream_android/models/media_item.dart';
+import 'package:pstream_android/providers/storage_provider.dart';
+import 'package:pstream_android/providers/tmdb_provider.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
-import 'package:pstream_android/services/tmdb_service.dart';
-import 'package:pstream_android/storage/local_storage.dart';
 import 'package:pstream_android/widgets/episode_list_sheet.dart';
 import 'package:shimmer/shimmer.dart';
 
-class DetailScreen extends StatefulWidget {
+class DetailScreen extends ConsumerStatefulWidget {
   const DetailScreen({
     super.key,
     required this.mediaItem,
-    this.tmdbService = const TmdbService(),
   });
 
   final MediaItem mediaItem;
-  final TmdbService tmdbService;
 
   @override
-  State<DetailScreen> createState() => _DetailScreenState();
+  ConsumerState<DetailScreen> createState() => _DetailScreenState();
 }
 
-class _DetailScreenState extends State<DetailScreen> {
-  late Future<MediaItem> _detailsFuture;
+class _DetailScreenState extends ConsumerState<DetailScreen> {
   bool _overviewExpanded = false;
-  bool _isBookmarked = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _detailsFuture = widget.tmdbService.getDetails(
-      widget.mediaItem.tmdbId,
-      widget.mediaItem.type,
-    );
-    _isBookmarked = LocalStorage.isBookmarked(widget.mediaItem);
-  }
 
   Future<void> _toggleBookmark(MediaItem media) async {
-    final bool added = await LocalStorage.toggleBookmark(media);
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isBookmarked = added;
-    });
+    await ref.read(storageControllerProvider).toggleBookmark(media);
   }
 
   Future<void> _handlePlay(MediaItem media) async {
@@ -61,10 +41,7 @@ class _DetailScreenState extends State<DetailScreen> {
             backgroundColor: AppColors.modalBackground,
             isScrollControlled: true,
             builder: (BuildContext context) {
-              return EpisodeListSheet(
-                media: media,
-                tmdbService: widget.tmdbService,
-              );
+              return EpisodeListSheet(media: media);
             },
           );
 
@@ -76,29 +53,40 @@ class _DetailScreenState extends State<DetailScreen> {
       selectedEpisode = selection.episode;
     }
 
-    final String mediaKey = LocalStorage.mediaKey(
-      media,
+    final progressRequest = ProgressRequest(
+      mediaItem: media,
       season: selectedSeason,
       episode: selectedEpisode,
     );
-    final Map<String, dynamic>? progress = LocalStorage.getProgress(mediaKey);
+    final Map<String, dynamic>? progress = ref.read(
+      progressEntryProvider(progressRequest),
+    );
     final bool shouldResume = await _showResumeDialogIfNeeded(progress);
+    final int? resumeFrom = shouldResume
+        ? _readInt(progress?['positionSecs'])
+        : null;
     if (!mounted) {
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ScrapingScreen(
-          mediaItem: media,
-          season: selectedSeason,
-          episode: selectedEpisode,
-        ),
+    context.push(
+      '/scraping',
+      extra: ScrapingScreenArgs(
+        mediaItem: media,
+        season: selectedSeason,
+        episode: selectedEpisode,
+        resumeFrom: resumeFrom,
       ),
     );
 
     if (!shouldResume && progress != null) {
-      await LocalStorage.saveProgress(mediaKey, 0, 1, media);
+      await ref.read(storageControllerProvider).saveProgress(
+            media,
+            positionSecs: 0,
+            durationSecs: 1,
+            season: selectedSeason,
+            episode: selectedEpisode,
+          );
     }
   }
 
@@ -140,21 +128,27 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   Widget build(BuildContext context) {
     final WindowClass layout = windowClass(context);
+    final double heroHeight = MediaQuery.sizeOf(context).height *
+        (layout == WindowClass.compact ? 0.38 : 0.45);
+    final AsyncValue<MediaItem> details = ref.watch(
+      detailProvider(
+        DetailRequest(
+          id: widget.mediaItem.tmdbId,
+          type: widget.mediaItem.type,
+        ),
+      ),
+    );
+    final MediaItem media = details.value ?? widget.mediaItem;
+    final bool isLoading = details.isLoading;
+    final bool isBookmarked = ref.watch(bookmarkStatusProvider(media));
 
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
-      body: FutureBuilder<MediaItem>(
-        future: _detailsFuture,
-        initialData: widget.mediaItem,
-        builder: (BuildContext context, AsyncSnapshot<MediaItem> snapshot) {
-          final MediaItem media = snapshot.data ?? widget.mediaItem;
-          final bool isLoading =
-              snapshot.connectionState != ConnectionState.done;
-
-          return CustomScrollView(
+      body: SafeArea(
+        child: CustomScrollView(
             slivers: <Widget>[
               SliverAppBar(
-                expandedHeight: layout == WindowClass.compact ? 320 : 420,
+                expandedHeight: heroHeight,
                 pinned: true,
                 backgroundColor: AppColors.backgroundMain,
                 flexibleSpace: FlexibleSpaceBar(
@@ -168,7 +162,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       ? _DetailBody(
                           media: media,
                           isLoading: isLoading,
-                          isBookmarked: _isBookmarked,
+                          isBookmarked: isBookmarked,
                           overviewExpanded: _overviewExpanded,
                           onToggleBookmark: () => _toggleBookmark(media),
                           onToggleOverview: () {
@@ -186,7 +180,7 @@ class _DetailScreenState extends State<DetailScreen> {
                               child: _DetailBody(
                                 media: media,
                                 isLoading: isLoading,
-                                isBookmarked: _isBookmarked,
+                                isBookmarked: isBookmarked,
                                 overviewExpanded: _overviewExpanded,
                                 onToggleBookmark: () => _toggleBookmark(media),
                                 onToggleOverview: () {
@@ -204,8 +198,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 ),
               ),
             ],
-          );
-        },
+        ),
       ),
     );
   }
@@ -257,8 +250,10 @@ class _DetailBackdrop extends StatelessWidget {
           CachedNetworkImage(
             imageUrl: media.backdropUrl()!,
             fit: BoxFit.cover,
-            placeholder: (_, __) => const _BackdropPlaceholder(),
-            errorWidget: (_, __, ___) => const _BackdropPlaceholder(),
+            placeholder: (_, placeholderUrl) =>
+                const _BackdropPlaceholder(),
+            errorWidget: (_, error, stackTrace) =>
+                const _BackdropPlaceholder(),
           )
         else
           const _BackdropPlaceholder(),
@@ -283,7 +278,7 @@ class _DetailBackdrop extends StatelessWidget {
               colors: <Color>[
                 AppColors.backgroundAccentA.withValues(alpha: 0.45),
                 AppColors.backgroundAccentB.withValues(alpha: 0.05),
-                Colors.transparent,
+                AppColors.transparent,
               ],
             ),
           ),
@@ -413,7 +408,7 @@ class _DetailBody extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.x3),
           SizedBox(
-            height: 120,
+            height: AppSpacing.x30,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: media.credits.length,
@@ -422,11 +417,11 @@ class _DetailBody extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.x3),
                   child: SizedBox(
-                    width: 84,
+                    width: AppSpacing.x20,
                     child: Column(
                       children: <Widget>[
                         CircleAvatar(
-                          radius: 28,
+                          radius: AppSpacing.x8,
                           backgroundColor: AppColors.mediaCardHoverBackground,
                           backgroundImage: credit.profileUrl() != null
                               ? CachedNetworkImageProvider(credit.profileUrl()!)
@@ -474,8 +469,10 @@ class _PosterPanel extends StatelessWidget {
               : CachedNetworkImage(
                   imageUrl: media.posterUrl('w500')!,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => const _BackdropPlaceholder(),
-                  errorWidget: (_, __, ___) => const _BackdropPlaceholder(),
+                  placeholder: (_, placeholderUrl) =>
+                      const _BackdropPlaceholder(),
+                  errorWidget: (_, error, stackTrace) =>
+                      const _BackdropPlaceholder(),
                 ),
         ),
       ),

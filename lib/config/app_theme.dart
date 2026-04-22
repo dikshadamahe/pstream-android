@@ -13,6 +13,7 @@ class AppColors {
   static const Color blackC150 = Color(0xFF1A1A1A);
   static const Color blackC200 = Color(0xFF262626);
   static const Color blackC250 = Color(0xFF333333);
+  static const Color transparent = Color(0x00000000);
 
   // Base tokens: white
   static const Color white = Color(0xFFFFFFFF);
@@ -348,6 +349,8 @@ class AppSpacing {
   static const double x10 = unit * 10;
   static const double x12 = unit * 12;
   static const double x16 = unit * 16;
+  static const double x20 = unit * 20;
+  static const double x30 = unit * 30;
 }
 
 class AppTheme {

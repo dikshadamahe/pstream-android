@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:pstream_android/config/app_theme.dart';
@@ -9,8 +10,8 @@ import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/models/episode.dart';
 import 'package:pstream_android/models/season.dart';
 import 'package:pstream_android/models/stream_result.dart';
+import 'package:pstream_android/providers/storage_provider.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
-import 'package:pstream_android/storage/local_storage.dart';
 import 'package:pstream_android/widgets/player_controls.dart';
 
 class PlayerScreenArgs {
@@ -29,7 +30,7 @@ class PlayerScreenArgs {
   final int? resumeFrom;
 }
 
-class PlayerScreen extends StatefulWidget {
+class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({
     super.key,
     required this.args,
@@ -38,10 +39,10 @@ class PlayerScreen extends StatefulWidget {
   final PlayerScreenArgs args;
 
   @override
-  State<PlayerScreen> createState() => _PlayerScreenState();
+  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends State<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late final Player _player = Player(
     configuration: const PlayerConfiguration(
       title: 'PStream Android',
@@ -67,10 +68,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _playerReady = false;
   bool _hasPlaybackError = false;
   String? _playbackError;
+  late final StorageController _storageController;
 
   @override
   void initState() {
     super.initState();
+    _storageController = ref.read(storageControllerProvider);
     _applyPlayerChrome();
     _bindPlayerStreams();
     _openStream();
@@ -83,7 +86,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
-    _persistProgress();
+    unawaited(_persistProgress(refresh: false));
     for (final StreamSubscription<dynamic> subscription in _subscriptions) {
       subscription.cancel();
     }
@@ -221,7 +224,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return widget.args.resumeFrom;
     }
 
-    final Map<String, dynamic>? progress = LocalStorage.getProgress(_mediaKey);
+    final Map<String, dynamic>? progress = ref.read(
+      progressEntryProvider(
+        ProgressRequest(
+          mediaItem: widget.args.mediaItem,
+          season: widget.args.season,
+          episode: widget.args.episode,
+        ),
+      ),
+    );
     if (progress == null) {
       return null;
     }
@@ -230,24 +241,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return positionSecs > 0 ? positionSecs : null;
   }
 
-  String get _mediaKey {
-    return LocalStorage.mediaKey(
-      widget.args.mediaItem,
-      season: widget.args.season,
-      episode: widget.args.episode,
-    );
-  }
-
-  Future<void> _persistProgress() async {
+  Future<void> _persistProgress({bool refresh = true}) async {
     if (!_playerReady || _duration.inSeconds <= 0) {
       return;
     }
 
-    await LocalStorage.saveProgress(
-      _mediaKey,
-      _position.inSeconds,
-      _duration.inSeconds,
+    await _storageController.saveProgress(
       widget.args.mediaItem,
+      positionSecs: _position.inSeconds,
+      durationSecs: _duration.inSeconds,
+      season: widget.args.season,
+      episode: widget.args.episode,
+      refresh: refresh,
     );
   }
 
@@ -482,88 +487,98 @@ class _PlayerScreenState extends State<PlayerScreen> {
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _handleScreenTap,
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            _PlayerBackdrop(mediaItem: widget.args.mediaItem),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    AppColors.blackC50.withValues(alpha: 0.35),
-                    AppColors.blackC50.withValues(alpha: 0.65),
-                    AppColors.blackC50.withValues(alpha: 0.92),
-                  ],
-                ),
-              ),
-            ),
-            Center(
-              child: _hasPlaybackError
-                  ? _PlaybackErrorCard(message: _playbackError ?? 'Playback failed.')
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          Icons.play_circle_fill_rounded,
-                          color: AppColors.typeEmphasis.withValues(alpha: 0.18),
-                          size: 120,
-                        ),
-                        const SizedBox(height: AppSpacing.x3),
-                        Text(
-                          _playerReady ? 'Streaming' : 'Loading stream...',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: AppColors.typeEmphasis,
-                              ),
-                        ),
-                      ],
-                    ),
-            ),
-            if (_buffering && !_hasPlaybackError)
-              const Center(
-                child: RepaintBoundary(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            if (_subtitleToast != null)
-              Positioned(
-                top: AppSpacing.x8,
-                left: 0,
-                right: 0,
-                child: RepaintBoundary(
-                  child: AnimatedOpacity(
-                    opacity: _subtitleToast == null ? 0 : 1,
-                    duration: const Duration(milliseconds: 180),
-                    child: Center(
-                      child: PlayerInfoPill(label: _subtitleToast!),
-                    ),
+        child: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              _PlayerBackdrop(mediaItem: widget.args.mediaItem),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[
+                      AppColors.blackC50.withValues(alpha: 0.35),
+                      AppColors.blackC50.withValues(alpha: 0.65),
+                      AppColors.blackC50.withValues(alpha: 0.92),
+                    ],
                   ),
                 ),
               ),
-            PlayerControls(
-              visible: _controlsVisible,
-              mediaTitle: title,
-              sourceLabel: widget.args.streamResult.embedName ??
-                  widget.args.streamResult.sourceName,
-              isPlaying: _playing,
-              subtitlesEnabled: _subtitlesEnabled,
-              position: _position,
-              duration: _duration,
-              buffered: _buffer,
-              showNextEpisode: _shouldShowNextEpisode,
-              nextEpisodeLabel: _nextEpisodeTarget?.label,
-              onBack: () => Navigator.of(context).maybePop(),
-              onSubtitleToggle: _toggleSubtitles,
-              onPlayPause: _togglePlayback,
-              onSeekBack: () => _seekRelative(-10),
-              onSeekForward: () => _seekRelative(10),
-              onSeek: _seekToFraction,
-              onSourceSwitcher: _openSourceSheet,
-              onFullscreen: _applyPlayerChrome,
-              onNextEpisode: _playNextEpisode,
-            ),
-          ],
+              Center(
+                child: _hasPlaybackError
+                    ? _PlaybackErrorCard(
+                        message: _playbackError ?? 'Playback failed.',
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.play_circle_fill_rounded,
+                            color: AppColors.typeEmphasis.withValues(
+                              alpha: 0.18,
+                            ),
+                            size: MediaQuery.sizeOf(context).shortestSide *
+                                0.24,
+                          ),
+                          const SizedBox(height: AppSpacing.x3),
+                          Text(
+                            _playerReady ? 'Streaming' : 'Loading stream...',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  color: AppColors.typeEmphasis,
+                                ),
+                          ),
+                        ],
+                      ),
+              ),
+              if (_buffering && !_hasPlaybackError)
+                const Center(
+                  child: RepaintBoundary(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+              if (_subtitleToast != null)
+                Positioned(
+                  top: AppSpacing.x8,
+                  left: AppSpacing.x0,
+                  right: AppSpacing.x0,
+                  child: RepaintBoundary(
+                    child: AnimatedOpacity(
+                      opacity: _subtitleToast == null ? 0 : 1,
+                      duration: const Duration(milliseconds: 180),
+                      child: Center(
+                        child: PlayerInfoPill(label: _subtitleToast!),
+                      ),
+                    ),
+                  ),
+                ),
+              PlayerControls(
+                visible: _controlsVisible,
+                mediaTitle: title,
+                sourceLabel: widget.args.streamResult.embedName ??
+                    widget.args.streamResult.sourceName,
+                isPlaying: _playing,
+                subtitlesEnabled: _subtitlesEnabled,
+                position: _position,
+                duration: _duration,
+                buffered: _buffer,
+                showNextEpisode: _shouldShowNextEpisode,
+                nextEpisodeLabel: _nextEpisodeTarget?.label,
+                onBack: () => Navigator.of(context).maybePop(),
+                onSubtitleToggle: _toggleSubtitles,
+                onPlayPause: _togglePlayback,
+                onSeekBack: () => _seekRelative(-10),
+                onSeekForward: () => _seekRelative(10),
+                onSeek: _seekToFraction,
+                onSourceSwitcher: _openSourceSheet,
+                onFullscreen: _applyPlayerChrome,
+                onNextEpisode: _playNextEpisode,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -603,7 +618,7 @@ class _PlayerBackdrop extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: backdropUrl,
       fit: BoxFit.cover,
-      errorWidget: (_, error, stackTrace) =>
+      errorWidget: (_, loadError, stackTrace) =>
           const ColoredBox(color: AppColors.blackC50),
     );
   }
@@ -617,7 +632,9 @@ class _PlaybackErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 420),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.7,
+      ),
       padding: const EdgeInsets.all(AppSpacing.x4),
       decoration: BoxDecoration(
         color: AppColors.videoContextBackground.withValues(alpha: 0.86),
@@ -630,7 +647,7 @@ class _PlaybackErrorCard extends StatelessWidget {
           const Icon(
             Icons.error_outline_rounded,
             color: AppColors.videoContextError,
-            size: 40,
+            size: AppSpacing.x10,
           ),
           const SizedBox(height: AppSpacing.x3),
           Text(
