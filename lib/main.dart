@@ -9,16 +9,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
   await LocalStorage.init();
-  runApp(const ProviderScope(child: PStreamApp()));
+  runApp(const ProviderScope(child: VeilApp()));
 }
 
-class PStreamApp extends StatelessWidget {
-  const PStreamApp({super.key});
+class VeilApp extends StatelessWidget {
+  const VeilApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'PStream Android',
+      title: 'Veil',
       theme: AppTheme.dark(),
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,

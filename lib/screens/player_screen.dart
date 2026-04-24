@@ -45,7 +45,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late final Player _player = Player(
     configuration: const PlayerConfiguration(
-      title: 'PStream Android',
+      title: 'Veil',
       bufferSize: 32 * 1024 * 1024,
     ),
   );

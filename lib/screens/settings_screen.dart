@@ -13,7 +13,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   static const String _releasesUrl =
-      'https://github.com/dikshadamahe/pstream-android/releases';
+      'https://github.com/dikshadamahe/veil-android/releases';
 
   Future<void> _clearWatchHistory() async {
     await ref.read(storageControllerProvider).clearHistory();

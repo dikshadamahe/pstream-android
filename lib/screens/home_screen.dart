@@ -48,7 +48,7 @@ class HomeScreen extends ConsumerWidget {
                   horizontal: AppSpacing.x4,
                 ),
                 child: Text(
-                  'PStream',
+                  'Veil',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: AppColors.typeEmphasis,
                         fontWeight: FontWeight.w700,

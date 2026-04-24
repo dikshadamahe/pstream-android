@@ -1,5 +1,5 @@
 name: pstream_android
-description: "Flutter Android streaming aggregator for PStream."
+description: "Veil is a minimalist Android streaming client with a self-hosted resolver stack."
 publish_to: 'none'
 version: 1.0.0+1
 
