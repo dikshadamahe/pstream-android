@@ -5,7 +5,7 @@ import 'package:pstream_android/main.dart';
 
 void main() {
   testWidgets('app bootstrap smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: PStreamApp()));
-    expect(find.text('PStream Android'), findsNothing);
+    await tester.pumpWidget(const ProviderScope(child: VeilApp()));
+    expect(find.byType(VeilApp), findsOneWidget);
   });
 }
