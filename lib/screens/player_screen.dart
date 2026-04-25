@@ -5,13 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/models/episode.dart';
 import 'package:pstream_android/models/season.dart';
+import 'package:pstream_android/models/scrape_event.dart';
 import 'package:pstream_android/models/stream_result.dart';
 import 'package:pstream_android/providers/storage_provider.dart';
+import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
+import 'package:pstream_android/services/stream_service.dart';
 import 'package:pstream_android/widgets/player_controls.dart';
 
 class PlayerScreenArgs {
@@ -42,13 +46,15 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
+    with WidgetsBindingObserver {
   late final Player _player = Player(
     configuration: const PlayerConfiguration(
       title: 'Veil',
       bufferSize: 32 * 1024 * 1024,
     ),
   );
+  late final VideoController _videoController = VideoController(_player);
 
   final List<StreamSubscription<dynamic>> _subscriptions =
       <StreamSubscription<dynamic>>[];
@@ -63,17 +69,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _playing = false;
   bool _buffering = true;
   bool _controlsVisible = true;
-  bool _subtitlesEnabled = true;
+  bool _subtitlesEnabled = false;
   bool _resumeApplied = false;
   bool _playerReady = false;
   bool _hasPlaybackError = false;
+  bool _sourceSwitching = false;
+  bool _wasBackgrounded = false;
   String? _playbackError;
+  int? _resumeFromOverride;
   late final StorageController _storageController;
+  late final StreamService _streamService;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _storageController = ref.read(storageControllerProvider);
+    _streamService = ref.read(streamServiceProvider);
     _applyPlayerChrome();
     _bindPlayerStreams();
     _openStream();
@@ -86,6 +98,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_persistProgress(refresh: false));
     for (final StreamSubscription<dynamic> subscription in _subscriptions) {
       subscription.cancel();
@@ -104,10 +117,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _applyPlayerChrome() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+        _wasBackgrounded = true;
+        if (_position.inSeconds > 0) {
+          _resumeFromOverride = _position.inSeconds;
+        }
+        unawaited(_persistProgress());
+        break;
+      case AppLifecycleState.resumed:
+        unawaited(_recoverFromBackground());
+        break;
+      case AppLifecycleState.detached:
+        break;
+    }
   }
 
   void _bindPlayerStreams() {
@@ -160,8 +190,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _openStream() async {
     final StreamPlayback playback = widget.args.streamResult.stream;
-    final String? url =
-        playback.proxiedPlaylist ?? playback.playlist ?? playback.playbackUrl;
+    final String? url = _resolvePlayableUrl(playback);
+    final Map<String, String> headers = playback.preferredHeaders.isNotEmpty
+        ? playback.preferredHeaders
+        : playback.headers;
 
     if (url == null || url.isEmpty) {
       if (!mounted) {
@@ -180,7 +212,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await _player.open(
         Media(
           url,
-          httpHeaders: playback.headers,
+          httpHeaders: headers,
         ),
       );
       if (!mounted) {
@@ -220,6 +252,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   int? get _resolvedResumeFrom {
+    if (_resumeFromOverride != null && _resumeFromOverride! > 0) {
+      return _resumeFromOverride;
+    }
     if (widget.args.resumeFrom != null) {
       return widget.args.resumeFrom;
     }
@@ -241,6 +276,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return positionSecs > 0 ? positionSecs : null;
   }
 
+  Future<void> _recoverFromBackground() async {
+    await _applyPlayerChrome();
+    if (!_wasBackgrounded || !mounted) {
+      return;
+    }
+
+    _wasBackgrounded = false;
+    _resumeApplied = false;
+    await _openStream();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   Future<void> _persistProgress({bool refresh = true}) async {
     if (!_playerReady || _duration.inSeconds <= 0) {
       return;
@@ -257,30 +306,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _toggleSubtitles() async {
-    final bool nextValue = !_subtitlesEnabled;
-    await _player.setSubtitleTrack(
-      nextValue ? SubtitleTrack.auto() : SubtitleTrack.no(),
-    );
+    final List<StreamCaption> captions = _availableCaptions;
 
-    if (!mounted) {
+    if (_subtitlesEnabled) {
+      await _player.setSubtitleTrack(SubtitleTrack.no());
+      _setSubtitleState(enabled: false, message: 'Subtitles off');
+      _showControls();
       return;
     }
 
-    setState(() {
-      _subtitlesEnabled = nextValue;
-      _subtitleToast = nextValue ? 'Subtitles on' : 'Subtitles off';
-    });
+    if (captions.isNotEmpty) {
+      final StreamCaption caption = captions.first;
+      await _player.setSubtitleTrack(
+        SubtitleTrack.uri(
+          caption.url!,
+          title: caption.label ?? caption.language ?? 'Subtitles',
+          language: caption.language ?? 'unknown',
+        ),
+      );
+      _setSubtitleState(
+        enabled: true,
+        message: caption.label ?? 'Subtitles on',
+      );
+      _showControls();
+      return;
+    }
 
-    _subtitleToastTimer?.cancel();
-    _subtitleToastTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _subtitleToast = null;
-      });
-    });
+    if (_player.state.tracks.subtitle.isNotEmpty) {
+      await _player.setSubtitleTrack(SubtitleTrack.auto());
+      _setSubtitleState(enabled: true, message: 'Subtitles on');
+      _showControls();
+      return;
+    }
 
+    _setSubtitleState(enabled: false, message: 'No subtitles available');
     _showControls();
   }
 
@@ -344,54 +403,163 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _openSourceSheet() async {
     _showControls();
-    await showModalBottomSheet<void>(
+    final String? selectedSourceId = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.modalBackground,
       builder: (BuildContext context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.x4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Current source',
-                  style: Theme.of(context).textTheme.titleLarge,
+        return FutureBuilder<ScrapeCatalog>(
+          future: _streamService.fetchCatalog(),
+          builder: (BuildContext context, AsyncSnapshot<ScrapeCatalog> snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.x6),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
-                const SizedBox(height: AppSpacing.x3),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.cloud_outlined),
-                  title: Text(widget.args.streamResult.sourceName),
-                  subtitle: Text(
-                    widget.args.streamResult.embedName ??
-                        'Headers: ${widget.args.streamResult.stream.headers.length}',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.x3),
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(this.context).pushReplacement(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ScrapingScreen(
-                          mediaItem: widget.args.mediaItem,
-                          season: widget.args.season,
-                          episode: widget.args.episode,
-                        ),
+              );
+            }
+
+            final List<ScrapeSourceDefinition> sources =
+                snapshot.data?.sources ?? const <ScrapeSourceDefinition>[];
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.x4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Choose source',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.x2),
+                    Text(
+                      'Current: ${widget.args.streamResult.sourceName}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.typeText,
+                          ),
+                    ),
+                    const SizedBox(height: AppSpacing.x3),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: sources.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final ScrapeSourceDefinition source = sources[index];
+                          final bool isCurrent =
+                              source.id == widget.args.streamResult.sourceId;
+
+                          return ListTile(
+                            leading: Icon(
+                              isCurrent
+                                  ? Icons.play_circle_fill_rounded
+                                  : Icons.cloud_outlined,
+                            ),
+                            title: Text(source.name),
+                            subtitle: isCurrent ? const Text('Current source') : null,
+                            onTap: () => Navigator.of(context).pop(source.id),
+                          );
+                        },
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.sync_alt_rounded),
-                  label: const Text('Find another source'),
+                    ),
+                    const SizedBox(height: AppSpacing.x3),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        await _persistProgress();
+                        Navigator.of(context).pop();
+                        Navigator.of(this.context).pushReplacement(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ScrapingScreen(
+                              mediaItem: widget.args.mediaItem,
+                              season: widget.args.season,
+                              episode: widget.args.episode,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.sync_alt_rounded),
+                      label: const Text('Run auto selection'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
+
+    if (selectedSourceId == null ||
+        selectedSourceId == widget.args.streamResult.sourceId) {
+      return;
+    }
+
+    await _switchSource(selectedSourceId);
+  }
+
+  Future<void> _switchSource(String sourceId) async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _sourceSwitching = true;
+      _buffering = true;
+    });
+
+    try {
+      await _persistProgress();
+      final StreamResult? result = await _streamService.scrapeSingleSource(
+        widget.args.mediaItem,
+        sourceId: sourceId,
+        season: widget.args.season,
+        episode: widget.args.episode,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (result == null) {
+        setState(() {
+          _sourceSwitching = false;
+          _buffering = false;
+        });
+        _setSubtitleState(
+          enabled: _subtitlesEnabled,
+          message: 'Source did not return a playable stream',
+        );
+        return;
+      }
+
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => PlayerScreen(
+            args: PlayerScreenArgs(
+              mediaItem: widget.args.mediaItem,
+              streamResult: result,
+              season: widget.args.season,
+              episode: widget.args.episode,
+              resumeFrom: _position.inSeconds,
+            ),
+          ),
+        ),
+      );
+
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _sourceSwitching = false;
+        _buffering = false;
+      });
+      _setSubtitleState(
+        enabled: _subtitlesEnabled,
+        message: 'Could not switch source',
+      );
+    }
   }
 
   void _handleScreenTap() {
@@ -459,6 +627,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
+    await _persistProgress();
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => ScrapingScreen(
@@ -482,16 +651,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       title = widget.args.mediaItem.title;
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.blackC50,
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handleScreenTap,
-        child: SafeArea(
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
+    return WillPopScope(
+      onWillPop: () async {
+        await _persistProgress();
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.blackC50,
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleScreenTap,
+          child: SafeArea(
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
               _PlayerBackdrop(mediaItem: widget.args.mediaItem),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _playerReady
+                      ? ColoredBox(
+                          color: AppColors.blackC50,
+                          child: Video(
+                            controller: _videoController,
+                            controls: NoVideoControls,
+                            fit: BoxFit.contain,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -510,7 +698,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ? _PlaybackErrorCard(
                         message: _playbackError ?? 'Playback failed.',
                       )
-                    : Column(
+                    : _sourceSwitching
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: AppSpacing.x3),
+                          Text(
+                            'Switching source...',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(color: AppColors.typeEmphasis),
+                          ),
+                        ],
+                      )
+                    : !_playerReady
+                    ? Column(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           Icon(
@@ -532,7 +736,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ),
                           ),
                         ],
-                      ),
+                      )
+                    : const SizedBox.shrink(),
               ),
               if (_buffering && !_hasPlaybackError)
                 const Center(
@@ -555,29 +760,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
-              PlayerControls(
-                visible: _controlsVisible,
-                mediaTitle: title,
-                sourceLabel: widget.args.streamResult.embedName ??
-                    widget.args.streamResult.sourceName,
-                isPlaying: _playing,
-                subtitlesEnabled: _subtitlesEnabled,
-                position: _position,
-                duration: _duration,
-                buffered: _buffer,
-                showNextEpisode: _shouldShowNextEpisode,
-                nextEpisodeLabel: _nextEpisodeTarget?.label,
-                onBack: () => Navigator.of(context).maybePop(),
-                onSubtitleToggle: _toggleSubtitles,
-                onPlayPause: _togglePlayback,
-                onSeekBack: () => _seekRelative(-10),
-                onSeekForward: () => _seekRelative(10),
-                onSeek: _seekToFraction,
-                onSourceSwitcher: _openSourceSheet,
-                onFullscreen: _applyPlayerChrome,
-                onNextEpisode: _playNextEpisode,
-              ),
-            ],
+                PlayerControls(
+                  visible: _controlsVisible,
+                  mediaTitle: title,
+                  sourceLabel: widget.args.streamResult.embedName ??
+                      widget.args.streamResult.sourceName,
+                  isPlaying: _playing,
+                  subtitlesEnabled: _subtitlesEnabled,
+                  position: _position,
+                  duration: _duration,
+                  buffered: _buffer,
+                  showNextEpisode: _shouldShowNextEpisode,
+                  nextEpisodeLabel: _nextEpisodeTarget?.label,
+                  onBack: () async {
+                    await _persistProgress();
+                    if (mounted) {
+                      await Navigator.of(context).maybePop();
+                    }
+                  },
+                  onSubtitleToggle: _toggleSubtitles,
+                  onPlayPause: _togglePlayback,
+                  onSeekBack: () => _seekRelative(-10),
+                  onSeekForward: () => _seekRelative(10),
+                  onSeek: _seekToFraction,
+                  onSourceSwitcher: _openSourceSheet,
+                  onFullscreen: _applyPlayerChrome,
+                  onNextEpisode: _playNextEpisode,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -599,6 +810,62 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return value;
     }
     return int.tryParse('$value') ?? 0;
+  }
+
+  List<StreamCaption> get _availableCaptions {
+    return widget.args.streamResult.stream.captions
+        .where((StreamCaption caption) => caption.url?.isNotEmpty == true)
+        .toList(growable: false);
+  }
+
+  void _setSubtitleState({
+    required bool enabled,
+    required String message,
+  }) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _subtitlesEnabled = enabled;
+      _subtitleToast = message;
+    });
+
+    _subtitleToastTimer?.cancel();
+    _subtitleToastTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _subtitleToast = null;
+      });
+    });
+  }
+
+  String? _resolvePlayableUrl(StreamPlayback playback) {
+    if (playback.proxiedPlaylist?.isNotEmpty == true) {
+      return playback.proxiedPlaylist;
+    }
+    if (playback.playlist?.isNotEmpty == true) {
+      return playback.playlist;
+    }
+    if (playback.playbackUrl?.isNotEmpty == true) {
+      return playback.playbackUrl;
+    }
+
+    final String? selectedQuality = playback.selectedQuality;
+    if (selectedQuality != null &&
+        playback.qualities[selectedQuality]?.url?.isNotEmpty == true) {
+      return playback.qualities[selectedQuality]?.url;
+    }
+
+    for (final StreamQuality quality in playback.qualities.values) {
+      if (quality.url?.isNotEmpty == true) {
+        return quality.url;
+      }
+    }
+
+    return null;
   }
 }
 
