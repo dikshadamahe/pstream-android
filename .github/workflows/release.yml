@@ -21,7 +21,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
       ORACLE_URL: ${{ vars.ORACLE_URL || secrets.ORACLE_URL }}
-      TMDB_TOKEN: ${{ secrets.TMDB_TOKEN || secrets.TMDB_READ_TOKEN }}
+      TMDB_TOKEN: ${{ secrets.TMDB_TOKEN || secrets.TMDB_READ_TOKEN || vars.TMDB_TOKEN || vars.TMDB_READ_TOKEN }}
 
     steps:
       - name: Checkout release ref
@@ -47,7 +47,7 @@ jobs:
       - name: Validate release secrets
         run: |
           if [ -z "${TMDB_TOKEN}" ]; then
-            echo "Missing GitHub secret: TMDB_TOKEN or TMDB_READ_TOKEN"
+            echo "Missing GitHub secret or variable: TMDB_TOKEN or TMDB_READ_TOKEN"
             exit 1
           fi
 
