@@ -186,8 +186,7 @@ class ExternalSubtitleService {
       if (item is! Map) {
         continue;
       }
-      final Map<String, dynamic> row =
-          Map<String, dynamic>.from(item as Map);
+      final Map<String, dynamic> row = Map<String, dynamic>.from(item);
       final String? url = _parseNullableString(row['url']);
       if (url == null || url.isEmpty) {
         continue;
@@ -269,7 +268,7 @@ class ExternalSubtitleService {
       if (raw is! Map) {
         continue;
       }
-      final Map<String, dynamic> item = Map<String, dynamic>.from(raw as Map);
+      final Map<String, dynamic> item = Map<String, dynamic>.from(raw);
       final Map<String, dynamic> attributes =
           Map<String, dynamic>.from(item['attributes'] as Map? ?? const {});
       final List<dynamic> files =

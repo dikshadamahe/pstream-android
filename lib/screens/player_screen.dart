@@ -2132,7 +2132,8 @@ class _OnlineSubtitleSearchSheetState extends State<_OnlineSubtitleSearchSheet> 
           return ListView.separated(
             padding: const EdgeInsets.only(bottom: AppSpacing.x4),
             itemCount: offers.length,
-            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.x2),
+            separatorBuilder: (BuildContext context, int index) =>
+                const SizedBox(height: AppSpacing.x2),
             itemBuilder: (BuildContext context, int index) {
               final ExternalSubtitleOffer offer = offers[index];
               return Material(

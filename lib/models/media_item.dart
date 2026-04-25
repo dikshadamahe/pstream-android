@@ -110,7 +110,7 @@ class MediaItem {
       if (year > 0) 'year': '$year',
       if (season != null) 'season': '$season',
       if (episode != null) 'episode': '$episode',
-      if (imdb != null) 'imdbId': imdb,
+      'imdbId': ?imdb,
       if (seasonTmdbId != null && seasonTmdbId.trim().isNotEmpty)
         'seasonTmdbId': seasonTmdbId.trim(),
       if (episodeTmdbId != null && episodeTmdbId.trim().isNotEmpty)
