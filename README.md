@@ -51,7 +51,7 @@ Design and behavior are aligned with the **xp-technologies-dev/p-stream** web re
 - **providers-api** — Node + Express wrapper around `@p-stream/providers`; lives in this repo under `backend/providers-api`.
 - **simple-proxy** — Run separately (e.g. on the same VM) for CORS/header-sensitive fetches. Reference: [xp-technologies-dev/simple-proxy](https://github.com/xp-technologies-dev/simple-proxy).
 - **Providers package** — Install from [xp-technologies-dev/providers](https://github.com/xp-technologies-dev/providers); the npm name remains `@p-stream/providers`.
-- **Scraper ids / Oracle** — See [`backend/providers-api/README.md`](backend/providers-api/README.md) (VidSrc vs `vidsrcvip`, AutoEmbed, what blocks CinePro / 2Embed, what to send from the VM).
+- **Scraper ids / Oracle** — See [`backend/providers-api/README.md`](backend/providers-api/README.md) and [`backend/providers-api/docs/CUSTOM_EMBED_INTEGRATION.md`](backend/providers-api/docs/CUSTOM_EMBED_INTEGRATION.md) (vidsrc-embed.ru, 2Embed.cc, AutoEmbed unchanged, CinePro Core OMSS).
 
 ---
 
@@ -111,7 +111,7 @@ The app reads **runtime** configuration (no secrets in source):
 | Define | Purpose |
 |--------|---------|
 | `ORACLE_URL` | Base URL of **providers-api** (e.g. `http://YOUR_VM_IP:3001`) |
-| `SCRAPE_SOURCE_ORDER` | Optional — comma-separated sourcerer **ids** for `sourceOrder` (see `backend/providers-api/README.md` for id ↔ name mapping and Oracle notes). Default: `vidlink,autoembed,vidsrcvip,multiembed,embedsu,insertunit`. Empty define → library default order. |
+| `SCRAPE_SOURCE_ORDER` | Optional — comma-separated **source** `id`s from your Oracle `GET /sources` (see `backend/providers-api/README.md` and `docs/CUSTOM_EMBED_INTEGRATION.md`). Default: `vidlink,fedapi,fedapidb,ridomovies,rgshows,vidrock`. Empty define → library default order. |
 | `TMDB_TOKEN` | TMDB **read** access token |
 | `WYZIE_API_KEY` | Optional — [Wyzie Subs](https://sub.wyzie.io/redeem) key for **Search online…** subtitles in the player |
 | `OPENSUBTITLES_API_KEY` | Optional — [OpenSubtitles.com](https://www.opensubtitles.com/en/consumers) REST **Api-Key** (search + download) |

@@ -6,18 +6,17 @@ Express service on **port 3001** that wraps **`@p-stream/providers`** (`targets.
 
 There is no separate **`@pstream-backend`** package in the Android repo: Oracle runs **this folder** (or a copy of it) under PM2 as `providers-api`.
 
-## Adding scrapers (VidSrc, 2Embed, AutoEmbed, CinePro, …)
+## Adding scrapers (VidSrc.me, 2Embed.cc, AutoEmbed, CinePro, …)
 
-1. **Sourcerer ids** must exist in **`xp-technologies-dev/providers`** as `makeSourcerer({ id: '…' })`. The app sends them as the `sourceOrder` query string (comma-separated).
-2. **Many embed-style sources are `disabled: true` on the `production` branch** until upstream re-enables them for `NATIVE`. Passing them in `sourceOrder` does nothing useful until the library actually runs them.
-3. **Names you use ≠ ids in code** (examples from upstream `production`):
-   - **AutoEmbed** → id **`autoembed`**
-   - **VidSrc-style API** → **`vidsrcvip`** (“VidSrc.vip”, not a generic “VidSrc” id)
-   - **Multi embed host** (closest to “2embed” style flows in tree) → **`multiembed`**
-   - **embed.su** → **`embedsu`**
-   - **CinePro** → **no matching sourcerer** in the public tree; it needs a **new** implementation in `providers`, then a dependency bump here.
+Step-by-step for **domains + APIs you listed** (`vidsrc-embed.ru`, 2embed.cc, AutoEmbed leave-as-is, CinePro Core): see **[docs/CUSTOM_EMBED_INTEGRATION.md](docs/CUSTOM_EMBED_INTEGRATION.md)**.
 
-To ship new names (e.g. true **2Embed** / **CinePro**), the work is in **`xp-technologies-dev/providers`** (new or un-archived sourcerer + tests), then:
+Short version:
+
+1. **Sourcerer ids** must exist in **`xp-technologies-dev/providers`** (or a fork) as `makeSourcerer({ id: '…' })`. The app sends them as the `sourceOrder` query string (comma-separated).
+2. **Your Oracle `/sources` JSON is the source of truth** for which ids exist today (e.g. `vidlink`, `fedapi`, …; embeds like `autoembed-english` are separate from top-level **source** ids).
+3. **CinePro** is an **OMSS** backend ([docs](https://cinepro.mintlify.app/)) — integrate via a **new sourcerer**, a **bridge** in this repo, or a sidecar; it is not a drop-in string in `@p-stream/providers` until someone implements it.
+
+To ship new sourcerers, the work is usually in **`xp-technologies-dev/providers`** (TypeScript + tests), then:
 
 ```bash
 cd backend/providers-api
