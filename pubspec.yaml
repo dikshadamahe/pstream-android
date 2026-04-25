@@ -22,6 +22,7 @@ dependencies:
   flutter_adaptive_scaffold: ^0.3.3+1
   http: ^1.5.0
   dio: ^5.9.0
+  screen_brightness: ^2.1.1
 
 dev_dependencies:
   flutter_test:

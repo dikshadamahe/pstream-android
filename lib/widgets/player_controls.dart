@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ class PlayerControls extends StatelessWidget {
     required this.sourceLabel,
     required this.qualityLabel,
     required this.subtitleLabel,
+    required this.volumeLabel,
     required this.isPlaying,
     required this.position,
     required this.duration,
@@ -22,6 +24,8 @@ class PlayerControls extends StatelessWidget {
     required this.onSeekForward,
     required this.onSeek,
     required this.onOpenSettings,
+    required this.onOpenBrightness,
+    required this.onOpenVolume,
     required this.onFullscreen,
     required this.onNextEpisode,
     this.nextEpisodeLabel,
@@ -32,6 +36,7 @@ class PlayerControls extends StatelessWidget {
   final String sourceLabel;
   final String qualityLabel;
   final String subtitleLabel;
+  final String volumeLabel;
   final bool isPlaying;
   final Duration position;
   final Duration duration;
@@ -43,6 +48,8 @@ class PlayerControls extends StatelessWidget {
   final Future<void> Function() onSeekForward;
   final Future<void> Function(double fraction) onSeek;
   final Future<void> Function() onOpenSettings;
+  final Future<void> Function() onOpenBrightness;
+  final Future<void> Function() onOpenVolume;
   final Future<void> Function() onFullscreen;
   final Future<void> Function() onNextEpisode;
   final String? nextEpisodeLabel;
@@ -173,6 +180,10 @@ class PlayerControls extends StatelessWidget {
                           icon: Icons.subtitles_rounded,
                           label: subtitleLabel,
                         ),
+                        _InfoChip(
+                          icon: Icons.volume_up_rounded,
+                          label: volumeLabel,
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.x3),
@@ -214,6 +225,20 @@ class PlayerControls extends StatelessWidget {
                                 style: Theme.of(context).textTheme.labelMedium,
                               ),
                               const Spacer(),
+                              IconButton(
+                                onPressed: () {
+                                  unawaited(onOpenBrightness());
+                                },
+                                icon: const Icon(Icons.brightness_6_rounded),
+                                tooltip: 'Brightness',
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  unawaited(onOpenVolume());
+                                },
+                                icon: const Icon(Icons.volume_up_rounded),
+                                tooltip: 'Volume',
+                              ),
                               IconButton(
                                 onPressed: () {
                                   onOpenSettings();

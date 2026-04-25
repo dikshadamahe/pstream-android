@@ -16,7 +16,11 @@ import 'package:pstream_android/providers/storage_provider.dart';
 import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
 import 'package:pstream_android/services/stream_service.dart';
+import 'package:pstream_android/utils/player_native_tune.dart';
 import 'package:pstream_android/widgets/player_controls.dart';
+import 'package:screen_brightness/screen_brightness.dart';
+
+enum _PlayerEdgeSwipe { none, brightness, volume }
 
 class PlayerScreenArgs {
   const PlayerScreenArgs({
@@ -51,7 +55,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   late final Player _player = Player(
     configuration: const PlayerConfiguration(
       title: 'Veil',
-      bufferSize: 32 * 1024 * 1024,
+      bufferSize: 64 * 1024 * 1024,
     ),
   );
   late final VideoController _videoController = VideoController(_player);
@@ -62,6 +66,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _progressTimer;
   String? _subtitleToast;
   Timer? _subtitleToastTimer;
+  Timer? _gestureHintTimer;
+
+  /// Software volume (0–150 after [applyNativePlaybackTune] raises `volume-max`).
+  double _softwareVolume = 100;
+  double _screenBrightness = 0.55;
+  bool _screenBrightnessPrimed = false;
+  _PlayerEdgeSwipe _edgeSwipe = _PlayerEdgeSwipe.none;
+  double _edgeSwipeAccumDy = 0;
+  double _edgeSwipeStartBrightness = 0.55;
+  double _edgeSwipeStartVolume = 100;
+  String? _gestureHint;
+  IconData? _gestureHintIcon;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -97,6 +113,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       (_) => _persistProgress(),
     );
     _armControlsHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_primeScreenBrightness());
+    });
   }
 
   @override
@@ -109,6 +128,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _controlsHideTimer?.cancel();
     _progressTimer?.cancel();
     _subtitleToastTimer?.cancel();
+    _gestureHintTimer?.cancel();
+    unawaited(_restoreScreenBrightness());
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
@@ -222,6 +243,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           httpHeaders: headers,
         ),
       );
+      await applyNativePlaybackTune(_player);
+      await _player.setVolume(_softwareVolume);
       await _applySelectedSubtitleTrack();
       if (!mounted) {
         return;
@@ -711,6 +734,311 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  Future<void> _primeScreenBrightness() async {
+    if (_screenBrightnessPrimed || !mounted) {
+      return;
+    }
+    try {
+      final double value = await ScreenBrightness.instance.application;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _screenBrightness = value.clamp(0.03, 1.0);
+        _screenBrightnessPrimed = true;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _screenBrightnessPrimed = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _restoreScreenBrightness() async {
+    try {
+      await ScreenBrightness.instance.resetApplicationScreenBrightness();
+    } catch (_) {
+      // Ignore: plugin may be unavailable on some devices.
+    }
+  }
+
+  void _onVerticalDragStart(DragStartDetails details) {
+    final MediaQueryData mq = MediaQuery.of(context);
+    final double width =
+        mq.size.width - mq.padding.left - mq.padding.right;
+    if (width <= 0) {
+      return;
+    }
+    final double x = details.globalPosition.dx - mq.padding.left;
+    final double side = (x / width).clamp(0.0, 1.0);
+    if (side < 0.32) {
+      _edgeSwipe = _PlayerEdgeSwipe.brightness;
+      _edgeSwipeStartBrightness = _screenBrightness;
+    } else if (side > 0.68) {
+      _edgeSwipe = _PlayerEdgeSwipe.volume;
+      _edgeSwipeStartVolume = _softwareVolume;
+    } else {
+      _edgeSwipe = _PlayerEdgeSwipe.none;
+      return;
+    }
+    _edgeSwipeAccumDy = 0;
+  }
+
+  Future<void> _onVerticalDragUpdate(DragUpdateDetails details) async {
+    if (_edgeSwipe == _PlayerEdgeSwipe.none) {
+      return;
+    }
+    _edgeSwipeAccumDy += details.primaryDelta ?? 0;
+    final double height = MediaQuery.sizeOf(context).height;
+    final double travel = height * 0.38;
+    if (travel <= 0) {
+      return;
+    }
+
+    if (_edgeSwipe == _PlayerEdgeSwipe.brightness) {
+      final double next = (_edgeSwipeStartBrightness + (-_edgeSwipeAccumDy / travel))
+          .clamp(0.03, 1.0);
+      if ((next - _screenBrightness).abs() < 0.004) {
+        return;
+      }
+      _screenBrightness = next;
+      try {
+        await ScreenBrightness.instance
+            .setApplicationScreenBrightness(_screenBrightness);
+      } catch (_) {
+        // Ignore device-specific failures.
+      }
+      if (!mounted) {
+        return;
+      }
+      _flashGestureHint(
+        icon: Icons.brightness_6_rounded,
+        label: 'Brightness ${(_screenBrightness * 100).round()}%',
+      );
+      return;
+    }
+
+    if (_edgeSwipe == _PlayerEdgeSwipe.volume) {
+      final double next =
+          (_edgeSwipeStartVolume + (-_edgeSwipeAccumDy / travel) * 150)
+              .clamp(0, 150);
+      if ((next - _softwareVolume).abs() < 0.5) {
+        return;
+      }
+      _softwareVolume = next;
+      await _player.setVolume(_softwareVolume);
+      if (!mounted) {
+        return;
+      }
+      _flashGestureHint(
+        icon: Icons.volume_up_rounded,
+        label: 'Volume ${_softwareVolume.round()}',
+      );
+    }
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _edgeSwipe = _PlayerEdgeSwipe.none;
+    _edgeSwipeAccumDy = 0;
+  }
+
+  void _flashGestureHint({
+    required IconData icon,
+    required String label,
+  }) {
+    _gestureHintTimer?.cancel();
+    setState(() {
+      _gestureHintIcon = icon;
+      _gestureHint = label;
+    });
+    _gestureHintTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _gestureHint = null;
+        _gestureHintIcon = null;
+      });
+    });
+  }
+
+  Future<void> _openBrightnessSheet() async {
+    _showControls();
+    await _showPlayerSheet<void>(
+      builder: (BuildContext context) {
+        return _PlayerSheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.x4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Brightness',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.typeEmphasis,
+                            ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        await _restoreScreenBrightness();
+                        if (!context.mounted) {
+                          return;
+                        }
+                        try {
+                          final double value =
+                              await ScreenBrightness.instance.application;
+                          if (!context.mounted) {
+                            return;
+                          }
+                          setState(() {
+                            _screenBrightness = value.clamp(0.03, 1.0);
+                          });
+                        } catch (_) {
+                          // Keep previous value if the platform cannot read brightness.
+                        }
+                        if (!context.mounted) {
+                          return;
+                        }
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('System default'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.x3),
+                StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setModal) {
+                    return SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: AppSpacing.x1,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: AppSpacing.x3,
+                        ),
+                      ),
+                      child: Slider(
+                        value: _screenBrightness,
+                        min: 0.03,
+                        max: 1,
+                        onChanged: (double value) {
+                          setModal(() {
+                            setState(() {
+                              _screenBrightness = value;
+                            });
+                          });
+                          unawaited(
+                            ScreenBrightness.instance
+                                .setApplicationScreenBrightness(value),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: AppSpacing.x2),
+                Text(
+                  'Drag vertically on the left edge of the screen for quick brightness.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openVolumeSheet() async {
+    _showControls();
+    await _showPlayerSheet<void>(
+      builder: (BuildContext context) {
+        return _PlayerSheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.x4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Volume',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.typeEmphasis,
+                            ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        setState(() {
+                          _softwareVolume = 100;
+                        });
+                        await _player.setVolume(_softwareVolume);
+                        if (!context.mounted) {
+                          return;
+                        }
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.x3),
+                StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setModal) {
+                    return SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: AppSpacing.x1,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: AppSpacing.x3,
+                        ),
+                      ),
+                      child: Slider(
+                        value: _softwareVolume.clamp(0, 150),
+                        min: 0,
+                        max: 150,
+                        divisions: 30,
+                        label: '${_softwareVolume.round()}',
+                        onChanged: (double value) {
+                          setModal(() {
+                            setState(() {
+                              _softwareVolume = value;
+                            });
+                          });
+                          unawaited(_player.setVolume(_softwareVolume));
+                        },
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: AppSpacing.x2),
+                Text(
+                  'Drag vertically on the right edge for quick volume. Values above 100 boost quiet streams.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   _NextEpisodeTarget? get _nextEpisodeTarget {
     if (!widget.args.mediaItem.isShow ||
         widget.args.season == null ||
@@ -805,39 +1133,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _handleScreenTap,
+          onVerticalDragStart: _onVerticalDragStart,
+          onVerticalDragUpdate: (DragUpdateDetails details) {
+            unawaited(_onVerticalDragUpdate(details));
+          },
+          onVerticalDragEnd: _onVerticalDragEnd,
           child: SafeArea(
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-              _PlayerBackdrop(mediaItem: widget.args.mediaItem),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: _playerReady
-                      ? ColoredBox(
-                          color: AppColors.blackC50,
-                          child: Video(
+                _PlayerBackdrop(mediaItem: widget.args.mediaItem),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: _playerReady
+                        ? Video(
                             controller: _videoController,
                             controls: NoVideoControls,
                             fit: BoxFit.contain,
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      AppColors.blackC50.withValues(alpha: 0.35),
-                      AppColors.blackC50.withValues(alpha: 0.65),
-                      AppColors.blackC50.withValues(alpha: 0.92),
-                    ],
+                            fill: AppColors.blackC50,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
-              ),
-              Center(
+                Center(
                 child: _hasPlaybackError
                     ? _PlaybackErrorCard(
                         message: _playbackError ?? 'Playback failed.',
@@ -904,6 +1222,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
                 ),
+              if (_gestureHint != null)
+                Positioned(
+                  left: AppSpacing.x4,
+                  right: AppSpacing.x4,
+                  bottom: MediaQuery.sizeOf(context).height * 0.22,
+                  child: RepaintBoundary(
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.videoContextBackground
+                              .withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(AppSpacing.x4),
+                          border: Border.all(
+                            color: AppColors.videoContextBorder,
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.x4,
+                            vertical: AppSpacing.x3,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              if (_gestureHintIcon != null)
+                                Icon(
+                                  _gestureHintIcon,
+                                  color: AppColors.typeEmphasis,
+                                  size: AppSpacing.x6,
+                                ),
+                              if (_gestureHintIcon != null)
+                                const SizedBox(width: AppSpacing.x2),
+                              Flexible(
+                                child: Text(
+                                  _gestureHint!,
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(color: AppColors.typeEmphasis),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 PlayerControls(
                   visible: _controlsVisible,
                   mediaTitle: title,
@@ -911,6 +1278,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       widget.args.streamResult.sourceName,
                   qualityLabel: _currentQualityLabel,
                   subtitleLabel: _currentSubtitleLabel,
+                  volumeLabel: '${_softwareVolume.round()}',
                   isPlaying: _playing,
                   position: _position,
                   duration: _duration,
@@ -930,6 +1298,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   onSeekForward: () => _seekRelative(10),
                   onSeek: _seekToFraction,
                   onOpenSettings: _openPlayerSettingsSheet,
+                  onOpenBrightness: _openBrightnessSheet,
+                  onOpenVolume: _openVolumeSheet,
                   onFullscreen: _applyPlayerChrome,
                   onNextEpisode: _playNextEpisode,
                 ),
