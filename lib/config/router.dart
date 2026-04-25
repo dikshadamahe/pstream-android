@@ -4,6 +4,7 @@ import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/screens/detail_screen.dart';
 import 'package:pstream_android/screens/history_screen.dart';
 import 'package:pstream_android/screens/home_screen.dart';
+import 'package:pstream_android/screens/my_list_screen.dart';
 import 'package:pstream_android/screens/player_screen.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
 import 'package:pstream_android/screens/search_screen.dart';
@@ -21,29 +22,30 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     StatefulShellRoute.indexedStack(
-      builder: (
-        BuildContext context,
-        GoRouterState state,
-        StatefulNavigationShell navigationShell,
-      ) {
-        return AdaptiveNav(
-          currentIndex: navigationShell.currentIndex,
-          onDestinationSelected: (int index) {
-            // Use explicit locations so each tab always resolves (goBranch alone
-            // can fail to switch when branch restoration state is empty/stale).
-            const List<String> shellLocations = <String>[
-              '/',
-              '/search',
-              '/history',
-              '/settings',
-            ];
-            if (index >= 0 && index < shellLocations.length) {
-              context.go(shellLocations[index]);
-            }
+      builder:
+          (
+            BuildContext context,
+            GoRouterState state,
+            StatefulNavigationShell navigationShell,
+          ) {
+            return AdaptiveNav(
+              currentIndex: navigationShell.currentIndex,
+              onDestinationSelected: (int index) {
+                // Use explicit locations so each tab always resolves (goBranch alone
+                // can fail to switch when branch restoration state is empty/stale).
+                const List<String> shellLocations = <String>[
+                  '/',
+                  '/search',
+                  '/list',
+                  '/settings',
+                ];
+                if (index >= 0 && index < shellLocations.length) {
+                  context.go(shellLocations[index]);
+                }
+              },
+              child: navigationShell,
+            );
           },
-          child: navigationShell,
-        );
-      },
       branches: <StatefulShellBranch>[
         StatefulShellBranch(
           routes: <RouteBase>[
@@ -60,8 +62,7 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/search',
               builder: (BuildContext context, GoRouterState state) {
-                final SearchScreenArgs? args =
-                    state.extra as SearchScreenArgs?;
+                final SearchScreenArgs? args = state.extra as SearchScreenArgs?;
                 return SearchScreen(
                   initialQuery: args?.initialQuery,
                   title: args?.title,
@@ -73,9 +74,9 @@ final GoRouter appRouter = GoRouter(
         StatefulShellBranch(
           routes: <RouteBase>[
             GoRoute(
-              path: '/history',
+              path: '/list',
               builder: (BuildContext context, GoRouterState state) {
-                return const HistoryScreen();
+                return const MyListScreen();
               },
             ),
           ],
@@ -91,6 +92,12 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/history',
+      builder: (BuildContext context, GoRouterState state) {
+        return const HistoryScreen();
+      },
     ),
     GoRoute(
       path: '/detail/:id',

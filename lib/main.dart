@@ -21,8 +21,7 @@ class VeilApp extends ConsumerStatefulWidget {
   ConsumerState<VeilApp> createState() => _VeilAppState();
 }
 
-class _VeilAppState extends ConsumerState<VeilApp>
-    with WidgetsBindingObserver {
+class _VeilAppState extends ConsumerState<VeilApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();

@@ -70,10 +70,7 @@ class TmdbService {
         .where((MediaItem item) => item.tmdbId > 0)
         .toList();
 
-    return _dedupeMediaItems(<MediaItem>[
-      ...directMatches,
-      ...peopleMatches,
-    ]);
+    return _dedupeMediaItems(<MediaItem>[...directMatches, ...peopleMatches]);
   }
 
   Future<MediaItem> getDetails(int id, String type) async {
@@ -125,11 +122,7 @@ class TmdbService {
 
     final http.Client client = http.Client();
     try {
-      final http.Response response = await _sendWithRetry(
-        client,
-        uri,
-        token,
-      );
+      final http.Response response = await _sendWithRetry(client, uri, token);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         if (response.statusCode == 401) {
@@ -168,11 +161,7 @@ class TmdbService {
     }
   }
 
-  Future<http.Response> _send(
-    http.Client client,
-    Uri uri,
-    String token,
-  ) {
+  Future<http.Response> _send(http.Client client, Uri uri, String token) {
     return client
         .get(
           uri,

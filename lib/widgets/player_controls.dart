@@ -291,19 +291,13 @@ class PlayerInfoPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return _GlassContainer(
       borderRadius: BorderRadius.circular(AppSpacing.x10),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge,
-      ),
+      child: Text(label, style: Theme.of(context).textTheme.labelLarge),
     );
   }
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-  });
+  const _InfoChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -416,7 +410,8 @@ class _SeekBar extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      left: (constraints.maxWidth * playedFraction) -
+                      left:
+                          (constraints.maxWidth * playedFraction) -
                           AppSpacing.x2,
                       top: -AppSpacing.x2,
                       child: Container(
@@ -487,10 +482,7 @@ class _GlassContainer extends StatelessWidget {
     return ClipRRect(
       borderRadius: effectiveRadius,
       child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: AppSpacing.x5,
-          sigmaY: AppSpacing.x5,
-        ),
+        filter: ImageFilter.blur(sigmaX: AppSpacing.x5, sigmaY: AppSpacing.x5),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: AppColors.videoContextBackground.withValues(alpha: 0.62),
@@ -499,10 +491,7 @@ class _GlassContainer extends StatelessWidget {
               color: AppColors.videoContextBorder.withValues(alpha: 0.7),
             ),
           ),
-          child: Padding(
-            padding: padding,
-            child: child,
-          ),
+          child: Padding(padding: padding, child: child),
         ),
       ),
     );

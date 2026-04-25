@@ -26,10 +26,7 @@ class EpisodeSelection {
 }
 
 class EpisodeListSheet extends ConsumerStatefulWidget {
-  const EpisodeListSheet({
-    super.key,
-    required this.media,
-  });
+  const EpisodeListSheet({super.key, required this.media});
 
   final MediaItem media;
 
@@ -106,8 +103,7 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
     final LatestEpisodeSelection? currentSelection = ref.watch(
       latestEpisodeSelectionProvider(widget.media),
     );
-    final List<Episode> episodes =
-        seasonEpisodes.value ?? const <Episode>[];
+    final List<Episode> episodes = seasonEpisodes.value ?? const <Episode>[];
     final bool isLoading = seasonEpisodes.isLoading;
 
     return DraggableScrollableSheet(
@@ -194,8 +190,8 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
                                   episode: episode.number,
                                   seasonTmdbId:
                                       activeSeason.id.trim().isNotEmpty
-                                          ? activeSeason.id.trim()
-                                          : null,
+                                      ? activeSeason.id.trim()
+                                      : null,
                                   episodeTmdbId: episode.id.trim().isNotEmpty
                                       ? episode.id.trim()
                                       : null,
@@ -216,10 +212,7 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
 }
 
 class _EpisodeSheetMessage extends StatelessWidget {
-  const _EpisodeSheetMessage({
-    required this.title,
-    required this.message,
-  });
+  const _EpisodeSheetMessage({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -239,10 +232,7 @@ class _EpisodeSheetMessage extends StatelessWidget {
               top: Radius.circular(AppSpacing.x5),
             ),
           ),
-          child: _EpisodeSheetMessageBody(
-            title: title,
-            message: message,
-          ),
+          child: _EpisodeSheetMessageBody(title: title, message: message),
         );
       },
     );
@@ -250,10 +240,7 @@ class _EpisodeSheetMessage extends StatelessWidget {
 }
 
 class _EpisodeSheetMessageBody extends StatelessWidget {
-  const _EpisodeSheetMessageBody({
-    required this.title,
-    required this.message,
-  });
+  const _EpisodeSheetMessageBody({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -274,9 +261,9 @@ class _EpisodeSheetMessageBody extends StatelessWidget {
             const SizedBox(height: AppSpacing.x3),
             Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.typeText,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.typeText),
               textAlign: TextAlign.center,
             ),
           ],
@@ -405,8 +392,8 @@ class _EpisodeRow extends StatelessWidget {
                                         AppColors.mediaCardBarColor,
                                     valueColor:
                                         const AlwaysStoppedAnimation<Color>(
-                                      AppColors.mediaCardBarFillColor,
-                                    ),
+                                          AppColors.mediaCardBarFillColor,
+                                        ),
                                   ),
                                 ),
                               ),

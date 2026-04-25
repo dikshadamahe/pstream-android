@@ -11,8 +11,7 @@ import 'package:pstream_android/models/media_item.dart';
 class ExternalSubtitleService {
   const ExternalSubtitleService();
 
-  static final Uri _wyzieSearch =
-      Uri.parse('https://sub.wyzie.io/search');
+  static final Uri _wyzieSearch = Uri.parse('https://sub.wyzie.io/search');
   static final Uri _osBase = Uri.parse('https://api.opensubtitles.com/api/v1');
 
   static String? _osBearer;
@@ -69,8 +68,9 @@ class ExternalSubtitleService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return null;
       }
-      final Map<String, dynamic> json =
-          Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      final Map<String, dynamic> json = Map<String, dynamic>.from(
+        jsonDecode(response.body) as Map,
+      );
       return _parseNullableString(json['link']);
     }
 
@@ -126,8 +126,9 @@ class ExternalSubtitleService {
       return;
     }
 
-    final Map<String, dynamic> json =
-        Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final Map<String, dynamic> json = Map<String, dynamic>.from(
+      jsonDecode(response.body) as Map,
+    );
     final String? token = _parseNullableString(json['token']);
     if (token == null || token.isEmpty) {
       _osBearer = null;
@@ -193,12 +194,12 @@ class ExternalSubtitleService {
       }
       final String language =
           _parseNullableString(row['display']) ??
-              _parseNullableString(row['language']) ??
-              'Unknown';
+          _parseNullableString(row['language']) ??
+          'Unknown';
       final String release =
           _parseNullableString(row['release']) ??
-              _parseNullableString(row['fileName']) ??
-              '';
+          _parseNullableString(row['fileName']) ??
+          '';
       final String source =
           _parseNullableString(row['source']?.toString()) ?? 'Wyzie';
       final String title = release.isNotEmpty ? release : language;
@@ -243,23 +244,21 @@ class ExternalSubtitleService {
       }
     }
 
-    final Uri uri = _osBase.resolve('subtitles').replace(
-          queryParameters: query,
-        );
+    final Uri uri = _osBase
+        .resolve('subtitles')
+        .replace(queryParameters: query);
 
     final http.Response response = await http
-        .get(
-          uri,
-          headers: _opensubtitlesHeaders(includeBearer: false),
-        )
+        .get(uri, headers: _opensubtitlesHeaders(includeBearer: false))
         .timeout(const Duration(seconds: 25));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return const <ExternalSubtitleOffer>[];
     }
 
-    final Map<String, dynamic> json =
-        Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final Map<String, dynamic> json = Map<String, dynamic>.from(
+      jsonDecode(response.body) as Map,
+    );
     final List<dynamic> data = (json['data'] as List?) ?? const <dynamic>[];
 
     final List<ExternalSubtitleOffer> offers = <ExternalSubtitleOffer>[];
@@ -269,15 +268,17 @@ class ExternalSubtitleService {
         continue;
       }
       final Map<String, dynamic> item = Map<String, dynamic>.from(raw);
-      final Map<String, dynamic> attributes =
-          Map<String, dynamic>.from(item['attributes'] as Map? ?? const {});
+      final Map<String, dynamic> attributes = Map<String, dynamic>.from(
+        item['attributes'] as Map? ?? const {},
+      );
       final List<dynamic> files =
           (attributes['files'] as List?) ?? const <dynamic>[];
       if (files.isEmpty) {
         continue;
       }
-      final Map<String, dynamic> firstFile =
-          Map<String, dynamic>.from(files.first as Map? ?? const {});
+      final Map<String, dynamic> firstFile = Map<String, dynamic>.from(
+        files.first as Map? ?? const {},
+      );
       final int? fileId = _parsePositiveInt(firstFile['file_id']);
       if (fileId == null) {
         continue;
@@ -287,8 +288,7 @@ class ExternalSubtitleService {
           _parseNullableString(attributes['language']) ?? 'unknown';
       final String release =
           _parseNullableString(attributes['release']) ?? 'OpenSubtitles';
-      final String featureId =
-          _parseNullableString(item['id']) ?? 'os-$fileId';
+      final String featureId = _parseNullableString(item['id']) ?? 'os-$fileId';
 
       offers.add(
         ExternalSubtitleOffer(

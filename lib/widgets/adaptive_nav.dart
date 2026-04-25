@@ -16,10 +16,22 @@ class AdaptiveNav extends StatelessWidget {
   final Widget child;
 
   static const List<_AdaptiveNavDestination> _destinations = [
-    _AdaptiveNavDestination(label: 'Home', icon: Icons.home_outlined),
+    _AdaptiveNavDestination(
+      label: 'Home',
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
+    ),
     _AdaptiveNavDestination(label: 'Search', icon: Icons.search_rounded),
-    _AdaptiveNavDestination(label: 'History', icon: Icons.history_rounded),
-    _AdaptiveNavDestination(label: 'Settings', icon: Icons.settings_outlined),
+    _AdaptiveNavDestination(
+      label: 'My list',
+      icon: Icons.bookmark_outline_rounded,
+      selectedIcon: Icons.bookmark_rounded,
+    ),
+    _AdaptiveNavDestination(
+      label: 'Settings',
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings_rounded,
+    ),
   ];
 
   @override
@@ -38,12 +50,18 @@ class AdaptiveNav extends StatelessWidget {
           selectedItemColor: AppColors.typeEmphasis,
           unselectedItemColor: AppColors.typeSecondary,
           items: _destinations
-              .map(
-                (destination) => BottomNavigationBarItem(
-                  icon: Icon(destination.icon, size: AppSpacing.x6),
-                  label: destination.label,
-                ),
-              )
+              .asMap()
+              .entries
+              .map((MapEntry<int, _AdaptiveNavDestination> e) {
+                final bool selected = currentIndex == e.key;
+                return BottomNavigationBarItem(
+                  icon: Icon(
+                    e.value.resolvedIcon(selected),
+                    size: AppSpacing.x6,
+                  ),
+                  label: e.value.label,
+                );
+              })
               .toList(growable: false),
         ),
       );
@@ -79,24 +97,23 @@ class AdaptiveNav extends StatelessWidget {
                   color: AppColors.typeSecondary,
                   size: railIconSize,
                 ),
-                selectedLabelTextStyle: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(
+                selectedLabelTextStyle: Theme.of(context).textTheme.labelLarge
+                    ?.copyWith(
                       color: AppColors.typeEmphasis,
                       fontWeight: FontWeight.w600,
                     ),
-                unselectedLabelTextStyle: Theme.of(context)
-                    .textTheme
-                    .labelLarge
+                unselectedLabelTextStyle: Theme.of(context).textTheme.labelLarge
                     ?.copyWith(color: AppColors.typeSecondary),
                 destinations: _destinations
-                    .map(
-                      (destination) => NavigationRailDestination(
-                        icon: Icon(destination.icon),
-                        selectedIcon: Icon(destination.icon),
-                        label: Text(destination.label),
-                      ),
-                    )
+                    .asMap()
+                    .entries
+                    .map((MapEntry<int, _AdaptiveNavDestination> e) {
+                      return NavigationRailDestination(
+                        icon: Icon(e.value.icon),
+                        selectedIcon: Icon(e.value.resolvedIcon(true)),
+                        label: Text(e.value.label),
+                      );
+                    })
                     .toList(growable: false),
               ),
             ),
@@ -113,8 +130,20 @@ class AdaptiveNav extends StatelessWidget {
 }
 
 class _AdaptiveNavDestination {
-  const _AdaptiveNavDestination({required this.label, required this.icon});
+  const _AdaptiveNavDestination({
+    required this.label,
+    required this.icon,
+    this.selectedIcon,
+  });
 
   final String label;
   final IconData icon;
+  final IconData? selectedIcon;
+
+  IconData resolvedIcon(bool selected) {
+    if (selected && selectedIcon != null) {
+      return selectedIcon!;
+    }
+    return icon;
+  }
 }

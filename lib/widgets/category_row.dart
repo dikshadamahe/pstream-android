@@ -10,28 +10,65 @@ class CategoryRow extends StatelessWidget {
     required this.title,
     required this.items,
     this.isLoading = false,
+    this.onSeeAll,
+    this.useSectionAccent = false,
   });
 
   final String title;
   final List<MediaItem> items;
   final bool isLoading;
+  final VoidCallback? onSeeAll;
+  final bool useSectionAccent;
 
   @override
   Widget build(BuildContext context) {
     final double rowHeight = _heightFor(context);
     final int itemCount = isLoading ? _placeholderCount(context) : items.length;
+    final TextStyle? titleStyle = Theme.of(context).textTheme.titleLarge
+        ?.copyWith(
+          color: useSectionAccent
+              ? AppColors.streamSectionAccent
+              : AppColors.typeEmphasis,
+          fontWeight: FontWeight.w700,
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x4),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppColors.typeEmphasis,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Expanded(child: Text(title, style: titleStyle)),
+              if (onSeeAll != null)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 44),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: AppColors.streamSectionAccent,
+                  ),
+                  onPressed: onSeeAll,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'See all',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.streamSectionAccent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.x1),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: AppSpacing.x5,
+                        color: AppColors.streamSectionAccent,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.x3),

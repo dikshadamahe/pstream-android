@@ -75,14 +75,11 @@ class MediaCard extends ConsumerWidget {
                             child: mediaItem.posterUrl() == null
                                 ? const _MediaCardPosterPlaceholder()
                                 : CachedNetworkImage(
-                                    imageUrl: mediaItem.posterUrl(
-                                      posterSize,
-                                    )!,
+                                    imageUrl: mediaItem.posterUrl(posterSize)!,
                                     fit: BoxFit.cover,
                                     placeholder: (_, placeholderUrl) =>
                                         const _MediaCardPosterPlaceholder(),
-                                    errorWidget:
-                                        (_, error, stackTrace) =>
+                                    errorWidget: (_, error, stackTrace) =>
                                         const _MediaCardPosterPlaceholder(),
                                   ),
                           ),
@@ -144,8 +141,8 @@ class MediaCard extends ConsumerWidget {
                                   backgroundColor: AppColors.mediaCardBarColor,
                                   valueColor:
                                       const AlwaysStoppedAnimation<Color>(
-                                    AppColors.mediaCardBarFillColor,
-                                  ),
+                                        AppColors.mediaCardBarFillColor,
+                                      ),
                                 ),
                               ),
                             ),

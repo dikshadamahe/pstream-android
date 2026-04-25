@@ -35,19 +35,16 @@ final detailProvider = FutureProvider.family<MediaItem, DetailRequest>((
 
 final seasonEpisodesProvider =
     FutureProvider.family<List<Episode>, SeasonEpisodesRequest>((
-  Ref ref,
-  SeasonEpisodesRequest request,
-) {
-  return ref
-      .read(tmdbServiceProvider)
-      .getSeasonEpisodes(request.showId, request.seasonNum);
-});
+      Ref ref,
+      SeasonEpisodesRequest request,
+    ) {
+      return ref
+          .read(tmdbServiceProvider)
+          .getSeasonEpisodes(request.showId, request.seasonNum);
+    });
 
 class DetailRequest {
-  const DetailRequest({
-    required this.id,
-    required this.type,
-  });
+  const DetailRequest({required this.id, required this.type});
 
   final int id;
   final String type;
@@ -62,10 +59,7 @@ class DetailRequest {
 }
 
 class SeasonEpisodesRequest {
-  const SeasonEpisodesRequest({
-    required this.showId,
-    required this.seasonNum,
-  });
+  const SeasonEpisodesRequest({required this.showId, required this.seasonNum});
 
   final int showId;
   final int seasonNum;

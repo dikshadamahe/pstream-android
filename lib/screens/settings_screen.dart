@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pstream_android/config/app_theme.dart';
+import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/providers/storage_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -13,43 +15,32 @@ class SettingsScreen extends ConsumerWidget {
         label: 'Continue watching',
         value: ref.watch(continueWatchingProvider).length,
       ),
-      MediaStat(
-        label: 'Bookmarks',
-        value: ref.watch(bookmarksProvider).length,
-      ),
-      MediaStat(
-        label: 'History',
-        value: ref.watch(historyProvider).length,
-      ),
+      MediaStat(label: 'Bookmarks', value: ref.watch(bookmarksProvider).length),
+      MediaStat(label: 'History', value: ref.watch(historyProvider).length),
     ];
+
+    final double horizontal = switch (windowClass(context)) {
+      WindowClass.compact => AppSpacing.x4,
+      WindowClass.medium => AppSpacing.x5,
+      WindowClass.expanded => AppSpacing.x6,
+    };
 
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
             AppSpacing.x4,
-            AppSpacing.x4,
-            AppSpacing.x4,
+            horizontal,
             AppSpacing.x6,
           ),
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                _RoundIconButton(
-                  icon: Icons.arrow_back_rounded,
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-                const SizedBox(width: AppSpacing.x3),
-                Expanded(
-                  child: Text(
-                    'Settings',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-              ],
+            _SettingsProfileHeader(
+              statsLine:
+                  '${stats[0].value} in progress · ${stats[1].value} saved · ${stats[2].value} in history',
             ),
-            const SizedBox(height: AppSpacing.x4),
+            const SizedBox(height: AppSpacing.x5),
             _SettingsHeroCard(stats: stats),
             const SizedBox(height: AppSpacing.x4),
             _SettingsSection(
@@ -57,6 +48,13 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: 'Manage local watch data stored on this device.',
               child: Column(
                 children: <Widget>[
+                  _SettingsNavTile(
+                    icon: Icons.video_library_outlined,
+                    title: 'Watch history',
+                    subtitle: 'Open your full watch history grid.',
+                    onTap: () => context.push('/history'),
+                  ),
+                  const SizedBox(height: AppSpacing.x3),
                   _SettingsActionTile(
                     icon: Icons.history_rounded,
                     title: 'Clear watch history',
@@ -69,7 +67,9 @@ class SettingsScreen extends ConsumerWidget {
                       message:
                           'This will remove watch history and resume progress for all titles on this device.',
                       onConfirm: () async {
-                        await ref.read(storageControllerProvider).clearHistory();
+                        await ref
+                            .read(storageControllerProvider)
+                            .clearHistory();
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -98,9 +98,7 @@ class SettingsScreen extends ConsumerWidget {
                             .clearBookmarks();
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Bookmarks cleared'),
-                            ),
+                            const SnackBar(content: Text('Bookmarks cleared')),
                           );
                         }
                       },
@@ -111,15 +109,30 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.x4),
             _SettingsSection(
-              title: 'Watch preferences',
+              title: 'Playback',
               subtitle:
-                  'Brainstorm from design review — controls are not wired yet.',
-              child: Text(
-                '• Default stream quality (auto / cap resolution)\n'
-                '• Subtitle defaults: on/off, size, color\n'
-                '• Library stats: finished titles, total watch time\n'
-                '• “My list” as the bookmarks surface (Figma list → bookmarks)',
-                style: Theme.of(context).textTheme.bodyMedium,
+                  'Placeholders only — values are not persisted until product approves Hive keys.',
+              child: Column(
+                children: <Widget>[
+                  _SettingsPlaceholderNavTile(
+                    title: 'Default stream quality',
+                    subtitle: 'Auto, 720p cap, 1080p cap (coming soon)',
+                    onTap: () =>
+                        _showSoonSheet(context, 'Default stream quality'),
+                  ),
+                  const SizedBox(height: AppSpacing.x3),
+                  _SettingsPlaceholderNavTile(
+                    title: 'Subtitles',
+                    subtitle: 'Default on/off, size, contrast (coming soon)',
+                    onTap: () => _showSoonSheet(context, 'Subtitles'),
+                  ),
+                  const SizedBox(height: AppSpacing.x3),
+                  _SettingsPlaceholderNavTile(
+                    title: 'Watch statistics',
+                    subtitle: 'Finished titles, total time (coming soon)',
+                    onTap: () => _showSoonSheet(context, 'Watch statistics'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -158,6 +171,35 @@ class SettingsScreen extends ConsumerWidget {
       await onConfirm();
     }
   }
+
+  void _showSoonSheet(BuildContext context, String feature) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.x4,
+            AppSpacing.x2,
+            AppSpacing.x4,
+            AppSpacing.x8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(feature, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.x2),
+              Text(
+                'This control is a design placeholder. Persistence and player wiring will ship after approval.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class MediaStat {
@@ -165,6 +207,46 @@ class MediaStat {
 
   final String label;
   final int value;
+}
+
+class _SettingsProfileHeader extends StatelessWidget {
+  const _SettingsProfileHeader({required this.statsLine});
+
+  final String statsLine;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        CircleAvatar(
+          radius: 26,
+          backgroundColor: AppColors.blackC150,
+          child: Icon(
+            Icons.person_rounded,
+            size: AppSpacing.x8,
+            color: AppColors.streamSectionAccent,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.x4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Settings',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.x2),
+              Text(statsLine, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _SettingsHeroCard extends StatelessWidget {
@@ -194,12 +276,12 @@ class _SettingsHeroCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              'Device and playback preferences',
+              'This device',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.x2),
             Text(
-              'A cleaner settings surface for local data, runtime info, and playback-related housekeeping.',
+              'Playback preferences and library summaries below are scoped to local storage on this phone.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.x4),
@@ -243,14 +325,11 @@ class _SettingsStatCard extends StatelessWidget {
               Text(
                 '${stat.value}',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppColors.typeEmphasis,
-                    ),
+                  color: AppColors.typeEmphasis,
+                ),
               ),
               const SizedBox(height: AppSpacing.x1),
-              Text(
-                stat.label,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
+              Text(stat.label, style: Theme.of(context).textTheme.labelMedium),
             ],
           ),
         ),
@@ -283,12 +362,124 @@ class _SettingsSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppColors.streamSectionAccent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: AppSpacing.x1),
             Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: AppSpacing.x4),
             child,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsNavTile extends StatelessWidget {
+  const _SettingsNavTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.searchPillSurface.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.x4,
+            vertical: AppSpacing.x3,
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(icon, color: AppColors.typeLink),
+              const SizedBox(width: AppSpacing.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.x1),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.typeSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsPlaceholderNavTile extends StatelessWidget {
+  const _SettingsPlaceholderNavTile({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.searchPillSurface.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.x4,
+            vertical: AppSpacing.x4,
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.x1),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                'Soon',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.typeSecondary,
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.typeSecondary),
+            ],
+          ),
         ),
       ),
     );
@@ -314,8 +505,9 @@ class _SettingsActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color accentColor =
-        destructive ? AppColors.typeDanger : AppColors.typeLink;
+    final Color accentColor = destructive
+        ? AppColors.typeDanger
+        : AppColors.typeLink;
 
     return Material(
       color: AppColors.blackC100,
@@ -353,35 +545,13 @@ class _SettingsActionTile extends StatelessWidget {
               const SizedBox(width: AppSpacing.x2),
               Text(
                 actionLabel,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: accentColor,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: accentColor),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.blackC100,
-      shape: const CircleBorder(),
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon),
       ),
     );
   }
