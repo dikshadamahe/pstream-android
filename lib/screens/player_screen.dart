@@ -466,9 +466,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     const SizedBox(height: AppSpacing.x3),
                     FilledButton.icon(
                       onPressed: () async {
+                        final NavigatorState modalNavigator =
+                            Navigator.of(context);
+                        final NavigatorState screenNavigator =
+                            Navigator.of(this.context);
                         await _persistProgress();
-                        Navigator.of(context).pop();
-                        Navigator.of(this.context).pushReplacement(
+                        if (!mounted) {
+                          return;
+                        }
+                        modalNavigator.pop();
+                        await screenNavigator.pushReplacement(
                           MaterialPageRoute<void>(
                             builder: (_) => ScrapingScreen(
                               mediaItem: widget.args.mediaItem,
@@ -627,8 +634,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
+    final NavigatorState navigator = Navigator.of(context);
     await _persistProgress();
-    await Navigator.of(context).pushReplacement(
+    if (!mounted) {
+      return;
+    }
+    await navigator.pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => ScrapingScreen(
           mediaItem: widget.args.mediaItem,
@@ -651,10 +662,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       title = widget.args.mediaItem.title;
     }
 
-    return WillPopScope(
-      onWillPop: () async {
-        await _persistProgress();
-        return true;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) {
+          unawaited(_persistProgress());
+        }
       },
       child: Scaffold(
         backgroundColor: AppColors.blackC50,
@@ -773,10 +786,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   showNextEpisode: _shouldShowNextEpisode,
                   nextEpisodeLabel: _nextEpisodeTarget?.label,
                   onBack: () async {
+                    final NavigatorState navigator = Navigator.of(context);
                     await _persistProgress();
-                    if (mounted) {
-                      await Navigator.of(context).maybePop();
+                    if (!mounted) {
+                      return;
                     }
+                    await navigator.maybePop();
                   },
                   onSubtitleToggle: _toggleSubtitles,
                   onPlayPause: _togglePlayback,
