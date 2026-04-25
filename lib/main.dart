@@ -41,9 +41,7 @@ class _VeilAppState extends ConsumerState<VeilApp>
       return;
     }
 
-    ref.invalidate(continueWatchingProvider);
-    ref.invalidate(bookmarksProvider);
-    ref.invalidate(historyProvider);
+    ref.invalidate(storageRevisionProvider);
     ref.invalidate(trendingMoviesProvider);
     ref.invalidate(trendingTVProvider);
     ref.invalidate(popularMoviesProvider);

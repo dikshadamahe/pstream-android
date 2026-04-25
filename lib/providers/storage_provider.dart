@@ -2,10 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/storage/local_storage.dart';
 
-final _storageRevisionProvider = StateProvider<int>((Ref ref) => 0);
+final storageRevisionProvider = StateProvider<int>((Ref ref) => 0);
 
 final continueWatchingProvider = Provider<List<MediaItem>>((Ref ref) {
-  ref.watch(_storageRevisionProvider);
+  ref.watch(storageRevisionProvider);
   return LocalStorage.getContinueWatching()
       .map((Map<String, dynamic> item) => item['media'])
       .whereType<Map>()
@@ -16,14 +16,25 @@ final continueWatchingProvider = Provider<List<MediaItem>>((Ref ref) {
 });
 
 final bookmarksProvider = Provider<List<MediaItem>>((Ref ref) {
-  ref.watch(_storageRevisionProvider);
+  ref.watch(storageRevisionProvider);
   return LocalStorage.getAllBookmarks()
       .map(MediaItem.fromTmdb)
       .toList(growable: false);
 });
 
+final historyProvider = Provider<List<MediaItem>>((Ref ref) {
+  ref.watch(storageRevisionProvider);
+  return LocalStorage.getHistory()
+      .map((Map<String, dynamic> item) => item['media'])
+      .whereType<Map>()
+      .map((Map<dynamic, dynamic> item) {
+        return MediaItem.fromTmdb(Map<String, dynamic>.from(item));
+      })
+      .toList(growable: false);
+});
+
 final bookmarkStatusProvider = Provider.family<bool, MediaItem>((Ref ref, MediaItem mediaItem) {
-  ref.watch(_storageRevisionProvider);
+  ref.watch(storageRevisionProvider);
   return LocalStorage.isBookmarked(mediaItem);
 });
 
@@ -32,7 +43,7 @@ final progressEntryProvider =
   Ref ref,
   ProgressRequest request,
 ) {
-  ref.watch(_storageRevisionProvider);
+  ref.watch(storageRevisionProvider);
   return LocalStorage.getProgress(
     LocalStorage.mediaKey(
       request.mediaItem,
@@ -47,7 +58,7 @@ final latestEpisodeSelectionProvider =
   Ref ref,
   MediaItem mediaItem,
 ) {
-  ref.watch(_storageRevisionProvider);
+  ref.watch(storageRevisionProvider);
   final Map<String, dynamic>? latest = LocalStorage.getLatestEpisodeProgress(
     mediaItem,
   );
@@ -77,7 +88,7 @@ class StorageController {
   final Ref _ref;
 
   void _refresh() {
-    _ref.read(_storageRevisionProvider.notifier).state++;
+    _ref.read(storageRevisionProvider.notifier).state++;
   }
 
   Future<bool> toggleBookmark(MediaItem mediaItem) async {

@@ -9,19 +9,19 @@ class PlayerControls extends StatelessWidget {
     required this.visible,
     required this.mediaTitle,
     required this.sourceLabel,
+    required this.qualityLabel,
+    required this.subtitleLabel,
     required this.isPlaying,
-    required this.subtitlesEnabled,
     required this.position,
     required this.duration,
     required this.buffered,
     required this.showNextEpisode,
     required this.onBack,
-    required this.onSubtitleToggle,
     required this.onPlayPause,
     required this.onSeekBack,
     required this.onSeekForward,
     required this.onSeek,
-    required this.onSourceSwitcher,
+    required this.onOpenSettings,
     required this.onFullscreen,
     required this.onNextEpisode,
     this.nextEpisodeLabel,
@@ -30,19 +30,19 @@ class PlayerControls extends StatelessWidget {
   final bool visible;
   final String mediaTitle;
   final String sourceLabel;
+  final String qualityLabel;
+  final String subtitleLabel;
   final bool isPlaying;
-  final bool subtitlesEnabled;
   final Duration position;
   final Duration duration;
   final Duration buffered;
   final bool showNextEpisode;
   final VoidCallback onBack;
-  final Future<void> Function() onSubtitleToggle;
   final Future<void> Function() onPlayPause;
   final Future<void> Function() onSeekBack;
   final Future<void> Function() onSeekForward;
   final Future<void> Function(double fraction) onSeek;
-  final Future<void> Function() onSourceSwitcher;
+  final Future<void> Function() onOpenSettings;
   final Future<void> Function() onFullscreen;
   final Future<void> Function() onNextEpisode;
   final String? nextEpisodeLabel;
@@ -81,6 +81,7 @@ class PlayerControls extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
+                            const SizedBox(height: AppSpacing.x1),
                             Text(
                               sourceLabel,
                               maxLines: 1,
@@ -92,13 +93,10 @@ class PlayerControls extends StatelessWidget {
                       ),
                       IconButton(
                         onPressed: () {
-                          onSubtitleToggle();
+                          onOpenSettings();
                         },
-                        icon: Icon(
-                          subtitlesEnabled
-                              ? Icons.subtitles_rounded
-                              : Icons.subtitles_off_rounded,
-                        ),
+                        icon: const Icon(Icons.tune_rounded),
+                        tooltip: 'Playback settings',
                       ),
                     ],
                   ),
@@ -159,6 +157,25 @@ class PlayerControls extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    Wrap(
+                      spacing: AppSpacing.x2,
+                      runSpacing: AppSpacing.x2,
+                      children: <Widget>[
+                        _InfoChip(
+                          icon: Icons.wifi_tethering_rounded,
+                          label: sourceLabel,
+                        ),
+                        _InfoChip(
+                          icon: Icons.high_quality_rounded,
+                          label: qualityLabel,
+                        ),
+                        _InfoChip(
+                          icon: Icons.subtitles_rounded,
+                          label: subtitleLabel,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.x3),
                     if (showNextEpisode)
                       Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.x3),
@@ -199,10 +216,10 @@ class PlayerControls extends StatelessWidget {
                               const Spacer(),
                               IconButton(
                                 onPressed: () {
-                                  onSourceSwitcher();
+                                  onOpenSettings();
                                 },
-                                icon: const Icon(Icons.arrow_right_alt_rounded),
-                                tooltip: 'Switch source',
+                                icon: const Icon(Icons.settings_outlined),
+                                tooltip: 'Settings',
                               ),
                               IconButton(
                                 onPressed: () {
@@ -252,6 +269,45 @@ class PlayerInfoPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelLarge,
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassContainer(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.x3,
+        vertical: AppSpacing.x2,
+      ),
+      borderRadius: BorderRadius.circular(AppSpacing.x10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: AppSpacing.x4, color: AppColors.typeSecondary),
+          const SizedBox(width: AppSpacing.x2),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width * 0.3,
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+        ],
       ),
     );
   }
