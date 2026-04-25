@@ -2,48 +2,83 @@
 
 ![Veil logo](logo.png)
 
-Minimal Android streaming client with a self-hosted resolver stack.
+**Veil** is a minimal Android streaming client: browse TMDB metadata, resolve streams through your own small backend, and play in-app with **media_kit**. It is **aggregator-only**—it does not host media, store video files, or operate as a CDN.
 
-Veil pulls metadata from TMDB, resolves third-party streams through your own backend, and plays them in-app. It is an aggregator only. It does not host media and does not act as a CDN.
+**Repository:** [github.com/dikshadamahe/veil-android](https://github.com/dikshadamahe/veil-android)
 
-## Stack
+---
 
-- Flutter 3.x
-- Dart
-- Riverpod
-- go_router
-- Hive
-- media_kit
-- Node.js 20
-- Express
-- `@p-stream/providers`
+## What you get
 
-## Project Layout
+| Area | Behavior |
+|------|----------|
+| **Discovery** | Trending and search (movies & TV), detail pages, posters from TMDB |
+| **Playback** | HLS/DASH-style streams via **media_kit**, headers from your resolver, resume & bookmarks (Hive) |
+| **Resolver** | SSE or blocking scrape against **providers-api**; optional **simple-proxy** for CDN-friendly fetches |
+| **History** | Watch history grid on device; continue-watching style flows where implemented |
 
-```text
-backend/providers-api/   Node service for /health, /scrape, /scrape/stream
-android/                 Flutter Android host app
-lib/                     Flutter application code
-test/                    Flutter tests
-logo.png                 Brand mark used in README and app icon assets
-```
+Design and behavior are aligned with the **xp-technologies-dev/p-stream** web reference where the team maps widgets to the original `.tsx` sources.
 
-## Backend
+---
+
+## Architecture
 
 ```text
-Veil app -> providers-api :3001 -> simple-proxy :3000 -> streaming CDNs
-            \-> TMDB API
+┌─────────────────────┐
+│   Veil (Flutter)    │
+│   Android client    │
+└──────────┬──────────┘
+           │
+     ┌─────┴─────┐
+     ▼           ▼
+┌────────────┐  ┌──────────────┐
+│ providers- │  │ TMDB API     │
+│ api :3001  │  │ (read token) │
+└─────┬──────┘  └──────────────┘
+      │
+      ▼
+┌────────────┐
+│ simple-    │
+│ proxy :3000
+└─────┬──────┘
+      ▼
+┌────────────┐
+│ Streaming   │
+│ CDNs        │
+└────────────┘
 ```
 
-`providers-api` lives in this repo under `backend/providers-api`.
+- **providers-api** — Node + Express wrapper around `@p-stream/providers`; lives in this repo under `backend/providers-api`.
+- **simple-proxy** — Run separately (e.g. on the same VM) for CORS/header-sensitive fetches. Reference: [xp-technologies-dev/simple-proxy](https://github.com/xp-technologies-dev/simple-proxy).
+- **Providers package** — Install from [xp-technologies-dev/providers](https://github.com/xp-technologies-dev/providers); the npm name remains `@p-stream/providers`.
 
-`simple-proxy` is expected to run separately on the VM and is based on:
-`https://github.com/xp-technologies-dev/simple-proxy`
+---
 
-The providers dependency is installed from:
-`https://github.com/xp-technologies-dev/providers`
+## Tech stack
 
-## Local Backend Setup
+| Layer | Choice |
+|-------|--------|
+| App | Flutter 3.x, Dart |
+| State & routing | Riverpod, go_router |
+| Local data | Hive |
+| Player | media_kit, media_kit_video |
+| Backend | Node.js 20, pnpm, Express |
+
+---
+
+## Repo layout
+
+```text
+backend/providers-api/   Health, /scrape, /scrape/stream (SSE)
+android/                 Android embedding, Gradle, manifests
+lib/                     Flutter app (screens, services, widgets)
+test/                    Widget / unit tests
+logo.png                 Brand mark (README + icon pipeline)
+```
+
+---
+
+## Backend: local run
 
 From `backend/providers-api`:
 
@@ -52,36 +87,52 @@ pnpm install
 pnpm start
 ```
 
-Default port is `3001`.
-
-Health check:
+Default listen port: **3001**.
 
 ```bash
 curl http://127.0.0.1:3001/health
 ```
 
-Example scrape request:
+Example movie scrape:
 
 ```bash
 curl "http://127.0.0.1:3001/scrape?type=movie&tmdbId=550&title=Fight%20Club&year=1999"
 ```
 
-## Android Build
+Point the app at your deployed host with `--dart-define=ORACLE_URL=...` (see below).
 
-The app expects runtime defines for:
+---
 
-- `ORACLE_URL`
-- `TMDB_TOKEN`
+## Android: build & run
 
-Example release build:
+The app reads **runtime** configuration (no secrets in source):
+
+| Define | Purpose |
+|--------|---------|
+| `ORACLE_URL` | Base URL of **providers-api** (e.g. `http://YOUR_VM_IP:3001`) |
+| `TMDB_TOKEN` | TMDB **read** access token |
+
+**Release APK example:**
 
 ```bash
+flutter pub get
 flutter build apk --release \
   --dart-define=ORACLE_URL=http://YOUR_VM_IP:3001 \
-  --dart-define=TMDB_TOKEN=YOUR_TMDB_READ_TOKEN
+  --dart-define=TMDB_TOKEN=YOUR_TMDB_READ_ACCESS_TOKEN
 ```
 
-## Notes
+Use **HTTPS** in production when your infrastructure supports it; cleartext is only appropriate for controlled lab/VPN setups.
 
-- The package import name remains `@p-stream/providers`.
-- Upstream docs may still reference older `p-stream/*` repos, but active code references should use `xp-technologies-dev/*`.
+---
+
+## Development notes
+
+- **Upstream code** for providers and proxy: prefer `xp-technologies-dev/*` on GitHub over legacy `p-stream/*` naming in old docs.
+- **Git identity / remotes** for collaborators: see `switch-dev.sh` (when not gitignored locally) or your team’s SSH host aliases for `github-diksha` / `github-pracheer`.
+- **Flutter analyze** should stay clean before merge; CI may run `flutter analyze` on `main` and PRs.
+
+---
+
+## Disclaimer
+
+Veil is a **metadata and playback orchestration** tool. You are responsible for how you configure backends, respect TMDB and provider terms, and comply with applicable law.

@@ -30,11 +30,14 @@ class EpisodeListSheet extends ConsumerStatefulWidget {
 
 class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
     with TickerProviderStateMixin {
-  late final TabController _tabController;
+  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
+    if (widget.media.seasons.isEmpty) {
+      return;
+    }
     final int initialIndex = _initialSeasonIndex();
     _tabController = TabController(
       length: widget.media.seasons.length,
@@ -46,13 +49,13 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
   @override
   void dispose() {
     _tabController
-      ..removeListener(_handleTabChange)
+      ?..removeListener(_handleTabChange)
       ..dispose();
     super.dispose();
   }
 
   void _handleTabChange() {
-    if (_tabController.indexIsChanging) {
+    if (_tabController == null || _tabController!.indexIsChanging) {
       return;
     }
     setState(() {});
@@ -74,7 +77,14 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
 
   @override
   Widget build(BuildContext context) {
-    final int seasonNumber = widget.media.seasons[_tabController.index].number;
+    if (widget.media.seasons.isEmpty || _tabController == null) {
+      return const _EpisodeSheetMessage(
+        title: 'No episodes available',
+        message: 'This series is missing season data right now.',
+      );
+    }
+
+    final int seasonNumber = widget.media.seasons[_tabController!.index].number;
     final AsyncValue<List<Episode>> seasonEpisodes = ref.watch(
       seasonEpisodesProvider(
         SeasonEpisodesRequest(
@@ -127,8 +137,18 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
               ),
               const SizedBox(height: AppSpacing.x2),
               Expanded(
-                child: isLoading
+                child: seasonEpisodes.hasError
+                    ? const _EpisodeSheetMessageBody(
+                        title: 'Could not load episodes',
+                        message: 'Try this series again in a moment.',
+                      )
+                    : isLoading
                     ? const Center(child: CircularProgressIndicator())
+                    : episodes.isEmpty
+                    ? const _EpisodeSheetMessageBody(
+                        title: 'No episodes available',
+                        message: 'This season does not have episode data yet.',
+                      )
                     : ListView.builder(
                         controller: scrollController,
                         padding: const EdgeInsets.fromLTRB(
@@ -173,6 +193,77 @@ class _EpisodeListSheetState extends ConsumerState<EpisodeListSheet>
           ),
         );
       },
+    );
+  }
+}
+
+class _EpisodeSheetMessage extends StatelessWidget {
+  const _EpisodeSheetMessage({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.48,
+      minChildSize: 0.36,
+      maxChildSize: 0.6,
+      builder: (BuildContext context, ScrollController scrollController) {
+        return DecoratedBox(
+          decoration: const BoxDecoration(
+            color: AppColors.modalBackground,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppSpacing.x5),
+            ),
+          ),
+          child: _EpisodeSheetMessageBody(
+            title: title,
+            message: message,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EpisodeSheetMessageBody extends StatelessWidget {
+  const _EpisodeSheetMessageBody({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.x6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.x3),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.typeText,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

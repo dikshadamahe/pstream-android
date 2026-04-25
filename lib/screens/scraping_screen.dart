@@ -10,7 +10,7 @@ import 'package:pstream_android/models/stream_result.dart';
 import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/player_screen.dart';
 import 'package:pstream_android/services/stream_service.dart';
-import 'package:pstream_android/widgets/scrape_source_card.dart';
+import 'package:pstream_android/widgets/scrape_source_card.dart' show ScrapeStatus;
 
 class ScrapingScreenArgs {
   const ScrapingScreenArgs({
@@ -63,7 +63,8 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     super.initState();
     _streamService = ref.read(streamServiceProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _primeCatalogAndStart();
+      _startStreamScrape();
+      unawaited(_primeCatalog());
     });
   }
 
@@ -74,7 +75,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     super.dispose();
   }
 
-  Future<void> _primeCatalogAndStart() async {
+  Future<void> _primeCatalog() async {
     try {
       final ScrapeCatalog catalog = await _streamService.fetchCatalog();
       if (!mounted) {
@@ -93,8 +94,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         return;
       }
     }
-
-    _startStreamScrape();
   }
 
   void _startStreamScrape() {
@@ -129,7 +128,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         final String? sourceId = event.sourceId;
         if (sourceId != null) {
           _updateStatus(sourceId, ScrapeStatus.pending);
-          _scrollToSource(sourceId);
         }
         _setLoading(false);
         break;
@@ -138,9 +136,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         if (sourceId != null) {
           final ScrapeStatus status = _statusFromString(event.updateStatus);
           _updateStatus(sourceId, status);
-          if (status == ScrapeStatus.pending) {
-            _scrollToSource(sourceId);
-          }
         }
         _setLoading(false);
         break;
@@ -292,25 +287,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     return _statuses.values.contains(ScrapeStatus.success);
   }
 
-  void _scrollToSource(String sourceId) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) {
-        return;
-      }
-
-      final int index = _sourceOrder.indexOf(sourceId);
-      if (index < 0) {
-        return;
-      }
-
-      _scrollController.animateTo(
-        index * ScrapeSourceCard.estimatedHeight,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
   Future<void> _showManualPicker() async {
     if (_sourceOrder.isEmpty) {
       return;
@@ -355,8 +331,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
       _statuses[sourceId] = ScrapeStatus.pending;
       _currentPendingSourceId = sourceId;
     });
-
-    _scrollToSource(sourceId);
 
     try {
       final StreamResult? result = await _streamService.scrapeSingleSource(
@@ -421,53 +395,96 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final _ScrapeNode? activeSource = _activeSource;
+    final int attemptedCount = _attemptedSourceIds.length;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Scraping ${widget.mediaItem.title}'),
+        title: const Text('Finding stream'),
       ),
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             if (_isLoading || _currentPendingSourceId != null)
               const RepaintBoundary(
                 child: LinearProgressIndicator(minHeight: AppSpacing.x1),
               ),
             Expanded(
-              child: _sourceOrder.isEmpty
-                  ? Center(
-                      child: Text(
-                        _isLoading
-                            ? 'Preparing sources...'
-                            : 'No sources found',
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(AppSpacing.x4),
-                      itemCount: _sourceOrder.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final String sourceId = _sourceOrder[index];
-                        final _ScrapeNode? source = _nodes[sourceId];
-                        if (source == null) {
-                          return const SizedBox.shrink();
-                        }
-
-                        return ScrapeSourceCard(
-                          sourceName: source.name,
-                          status: _statuses[sourceId] ?? ScrapeStatus.waiting,
-                          embeds: source.embedIds
-                              .map(
-                                (String embedId) => ScrapeEmbedItem(
-                                  name: _nodes[embedId]?.name ?? embedId,
-                                  status: _statuses[embedId] ??
-                                      ScrapeStatus.waiting,
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(AppSpacing.x4),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 560),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Text(
+                                widget.mediaItem.title,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: AppSpacing.x2),
+                              Text(
+                                _statusMessage(attemptedCount),
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: AppColors.typeText,
+                                    ),
+                              ),
+                              const SizedBox(height: AppSpacing.x5),
+                              if (activeSource != null)
+                                _ActiveSourceCard(
+                                  sourceName: activeSource.name,
+                                  embedCount: activeSource.embedIds.length,
+                                )
+                              else
+                                _IdleScrapeCard(
+                                  label: _isLoading
+                                      ? 'Preparing providers...'
+                                      : 'Waiting for the next source.',
                                 ),
-                              )
-                              .toList(),
-                        );
-                      },
+                              if (_attemptedSourceIds.isNotEmpty) ...<Widget>[
+                                const SizedBox(height: AppSpacing.x5),
+                                Text(
+                                  'Recent attempts',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: AppSpacing.x3),
+                                Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: AppSpacing.x2,
+                                  runSpacing: AppSpacing.x2,
+                                  children: _attemptedSourceIds
+                                      .take(6)
+                                      .map((String sourceId) {
+                                    final _ScrapeNode? node = _nodes[sourceId];
+                                    if (node == null) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return _AttemptChip(
+                                      label: node.name,
+                                      status: _statuses[sourceId] ?? ScrapeStatus.waiting,
+                                    );
+                                  }).toList(growable: false),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
+                  );
+                },
               ),
+            ),
             if (_allFailure)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -486,7 +503,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                     const SizedBox(height: AppSpacing.x3),
                     FilledButton(
                       onPressed: _showManualPicker,
-                      child: const Text('Try Manually'),
+                      child: const Text('Choose source'),
                     ),
                   ],
                 ),
@@ -495,6 +512,46 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         ),
       ),
     );
+  }
+
+  _ScrapeNode? get _activeSource {
+    if (_currentPendingSourceId != null) {
+      return _nodes[_currentPendingSourceId!];
+    }
+
+    for (final String sourceId in _sourceOrder) {
+      if ((_statuses[sourceId] ?? ScrapeStatus.waiting) == ScrapeStatus.pending) {
+        return _nodes[sourceId];
+      }
+    }
+
+    return null;
+  }
+
+  Iterable<String> get _attemptedSourceIds sync* {
+    for (final String sourceId in _sourceOrder.reversed) {
+      final ScrapeStatus status = _statuses[sourceId] ?? ScrapeStatus.waiting;
+      if (status == ScrapeStatus.failure ||
+          status == ScrapeStatus.notfound ||
+          status == ScrapeStatus.success) {
+        yield sourceId;
+      }
+    }
+  }
+
+  String _statusMessage(int attemptedCount) {
+    if (_allFailure) {
+      return 'Every automatic source failed. Pick one manually.';
+    }
+    if (_currentPendingSourceId != null) {
+      return attemptedCount == 0
+          ? 'Trying the first available source.'
+          : 'Trying another source after $attemptedCount attempt${attemptedCount == 1 ? '' : 's'}.';
+    }
+    if (_sourceOrder.isEmpty && _isLoading) {
+      return 'Loading source catalog.';
+    }
+    return 'Preparing playback.';
   }
 }
 
@@ -527,6 +584,226 @@ class _ScrapeNode {
       id: id,
       name: name ?? this.name,
       embedIds: embedIds ?? this.embedIds,
+    );
+  }
+}
+
+class _ActiveSourceCard extends StatefulWidget {
+  const _ActiveSourceCard({
+    required this.sourceName,
+    required this.embedCount,
+  });
+
+  final String sourceName;
+  final int embedCount;
+
+  @override
+  State<_ActiveSourceCard> createState() => _ActiveSourceCardState();
+}
+
+class _ActiveSourceCardState extends State<_ActiveSourceCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (BuildContext context, Widget? child) {
+          final double glow = 0.4 + (_controller.value * 0.6);
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: const EdgeInsets.all(AppSpacing.x5),
+            decoration: BoxDecoration(
+              color: AppColors.videoContextBackground.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(AppSpacing.x4),
+              border: Border.all(
+                color: AppColors.buttonsPurple.withValues(alpha: glow),
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.buttonsPurple.withValues(alpha: 0.16 * glow),
+                  blurRadius: AppSpacing.x6,
+                ),
+              ],
+            ),
+            child: child,
+          );
+        },
+        child: Row(
+          children: <Widget>[
+            const _ScanningIndicator(),
+            const SizedBox(width: AppSpacing.x4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Trying ${widget.sourceName}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.x2),
+                  Text(
+                    widget.embedCount > 0
+                        ? 'Checking ${widget.embedCount} embed option${widget.embedCount == 1 ? '' : 's'}.'
+                        : 'Checking the best stream path for this source.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.typeText,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScanningIndicator extends StatefulWidget {
+  const _ScanningIndicator();
+
+  @override
+  State<_ScanningIndicator> createState() => _ScanningIndicatorState();
+}
+
+class _ScanningIndicatorState extends State<_ScanningIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: AppSpacing.x10,
+      height: AppSpacing.x10,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (BuildContext context, Widget? child) {
+          return Stack(
+            alignment: Alignment.center,
+            children: List<Widget>.generate(3, (int index) {
+              final double phase = ((_controller.value + (index * 0.2)) % 1.0);
+              final double scale = 0.55 + (phase * 0.45);
+              final double opacity = 1.0 - phase;
+              return Opacity(
+                opacity: opacity.clamp(0.2, 1.0),
+                child: Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.buttonsPurple,
+                        width: AppSpacing.x1,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _IdleScrapeCard extends StatelessWidget {
+  const _IdleScrapeCard({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.videoContextBackground.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(AppSpacing.x4),
+        border: Border.all(
+          color: AppColors.videoContextBorder.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.x5),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      ),
+    );
+  }
+}
+
+class _AttemptChip extends StatelessWidget {
+  const _AttemptChip({
+    required this.label,
+    required this.status,
+  });
+
+  final String label;
+  final ScrapeStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color tint = switch (status) {
+      ScrapeStatus.success => AppColors.videoScrapingSuccess,
+      ScrapeStatus.failure || ScrapeStatus.notfound =>
+        AppColors.videoScrapingError,
+      ScrapeStatus.pending => AppColors.videoScrapingLoading,
+      ScrapeStatus.waiting => AppColors.typeSecondary,
+    };
+    final IconData icon = switch (status) {
+      ScrapeStatus.success => Icons.check_rounded,
+      ScrapeStatus.failure || ScrapeStatus.notfound => Icons.close_rounded,
+      ScrapeStatus.pending => Icons.more_horiz_rounded,
+      ScrapeStatus.waiting => Icons.circle_outlined,
+    };
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppSpacing.x4),
+        border: Border.all(color: tint.withValues(alpha: 0.45)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.x3,
+          vertical: AppSpacing.x2,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: AppSpacing.x4, color: tint),
+            const SizedBox(width: AppSpacing.x2),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.typeEmphasis,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

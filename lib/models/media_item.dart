@@ -72,9 +72,7 @@ class MediaItem {
               .map((dynamic credit) => MediaCredit.fromJson(_asMap(credit)))
               .where((MediaCredit credit) => credit.name.isNotEmpty)
               .toList(),
-      runtimeMins: _parseNullableInt(
-        json['runtime'] ?? json['episode_run_time']?.first,
-      ),
+      runtimeMins: _parseRuntimeMins(json),
     );
   }
 
@@ -156,6 +154,20 @@ class MediaItem {
       return value;
     }
     return int.tryParse('$value');
+  }
+
+  static int? _parseRuntimeMins(Map<String, dynamic> json) {
+    final dynamic runtime = json['runtime'];
+    if (runtime != null) {
+      return _parseNullableInt(runtime);
+    }
+
+    final dynamic episodeRunTime = json['episode_run_time'];
+    if (episodeRunTime is List && episodeRunTime.isNotEmpty) {
+      return _parseNullableInt(episodeRunTime.first);
+    }
+
+    return null;
   }
 
   static double _parseDouble(dynamic value) {
