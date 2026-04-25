@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pstream_android/config/app_config.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/models/media_item.dart';
@@ -12,6 +13,19 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!AppConfig.hasTmdbReadToken) {
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundMain,
+        body: SafeArea(
+          child: _HomeMessageState(
+            title: 'App setup is incomplete.',
+            message:
+                'This build is missing TMDB_TOKEN. Rebuild or re-release the app with the TMDB read access token configured in GitHub secrets.',
+          ),
+        ),
+      );
+    }
+
     final WindowClass layoutClass = windowClass(context);
     final double topPadding = switch (layoutClass) {
       WindowClass.compact => AppSpacing.x4,
@@ -32,8 +46,8 @@ class HomeScreen extends ConsumerWidget {
       continueWatchingProvider,
     );
     final List<MediaItem> bookmarks = ref.watch(bookmarksProvider);
-    final bool isLoading =
-        trendingMovies.isLoading || trendingTv.isLoading || popular.isLoading;
+    final Object? error =
+        trendingMovies.error ?? trendingTv.error ?? popular.error;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
@@ -44,19 +58,24 @@ class HomeScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.x4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x4),
                 child: Text(
                   'Veil',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: AppColors.typeEmphasis,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: AppColors.typeEmphasis,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.x5),
-              if (isLoading)
+              if (error != null)
+                _HomeMessageState(
+                  title: 'Could not load the home feed.',
+                  message: _friendlyMessage(error),
+                )
+              else if (trendingMovies.isLoading ||
+                  trendingTv.isLoading ||
+                  popular.isLoading)
                 const _HomeLoadingState()
               else ...<Widget>[
                 if (continueWatching.isNotEmpty) ...<Widget>[
@@ -70,20 +89,32 @@ class HomeScreen extends ConsumerWidget {
                   CategoryRow(title: 'My List', items: bookmarks),
                   const SizedBox(height: AppSpacing.x6),
                 ],
-                CategoryRow(
-                  title: 'Trending Movies',
-                  items: trendingMovies.value ?? const <MediaItem>[],
-                ),
-                const SizedBox(height: AppSpacing.x6),
-                CategoryRow(
-                  title: 'Trending TV',
-                  items: trendingTv.value ?? const <MediaItem>[],
-                ),
-                const SizedBox(height: AppSpacing.x6),
-                CategoryRow(
-                  title: 'Popular',
-                  items: popular.value ?? const <MediaItem>[],
-                ),
+                if ((trendingMovies.value ?? const <MediaItem>[]).isNotEmpty)
+                  CategoryRow(
+                    title: 'Trending Movies',
+                    items: trendingMovies.value ?? const <MediaItem>[],
+                  ),
+                if ((trendingMovies.value ?? const <MediaItem>[]).isNotEmpty)
+                  const SizedBox(height: AppSpacing.x6),
+                if ((trendingTv.value ?? const <MediaItem>[]).isNotEmpty)
+                  CategoryRow(
+                    title: 'Trending TV',
+                    items: trendingTv.value ?? const <MediaItem>[],
+                  ),
+                if ((trendingTv.value ?? const <MediaItem>[]).isNotEmpty)
+                  const SizedBox(height: AppSpacing.x6),
+                if ((popular.value ?? const <MediaItem>[]).isNotEmpty)
+                  CategoryRow(
+                    title: 'Popular',
+                    items: popular.value ?? const <MediaItem>[],
+                  ),
+                if ((trendingMovies.value ?? const <MediaItem>[]).isEmpty &&
+                    (trendingTv.value ?? const <MediaItem>[]).isEmpty &&
+                    (popular.value ?? const <MediaItem>[]).isEmpty)
+                  const _HomeMessageState(
+                    title: 'Nothing to show yet.',
+                    message: 'Trending data came back empty.',
+                  ),
               ],
             ],
           ),
@@ -124,4 +155,49 @@ class _HomeLoadingState extends StatelessWidget {
       ],
     );
   }
+}
+
+class _HomeMessageState extends StatelessWidget {
+  const _HomeMessageState({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.x4),
+        decoration: BoxDecoration(
+          color: AppColors.modalBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.x4),
+          border: Border.all(color: AppColors.dropdownBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.x2),
+            Text(message, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _friendlyMessage(Object error) {
+  final String message = '$error';
+  if (message.contains('TMDB authorization failed')) {
+    return 'TMDB_TOKEN is invalid or expired in this build. Rebuild the app with the new read access token.';
+  }
+  if (message.contains('TimeoutException')) {
+    return 'TMDB timed out on this network. The app now retries once, but if it still fails, rebuild with the new token and test again on a stable connection.';
+  }
+  return message;
 }

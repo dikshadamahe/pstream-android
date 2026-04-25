@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pstream_android/config/app_config.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/models/media_item.dart';
@@ -78,6 +79,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AppConfig.hasTmdbReadToken) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundMain,
+        appBar: AppBar(title: const Text('Search')),
+        body: const SafeArea(
+          child: _SearchMessageState(
+            title: 'Search is unavailable.',
+            message:
+                'This build is missing TMDB_TOKEN. Rebuild or re-release the app with the TMDB read access token configured in GitHub secrets.',
+          ),
+        ),
+      );
+    }
+
     final bool hasQuery = _query.isNotEmpty;
     final AsyncValue<List<MediaItem>> data = hasQuery
         ? ref.watch(searchProvider(_query))
