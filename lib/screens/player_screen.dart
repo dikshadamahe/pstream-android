@@ -48,10 +48,7 @@ class PlayerScreenArgs {
 }
 
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({
-    super.key,
-    required this.args,
-  });
+  const PlayerScreen({super.key, required this.args});
 
   final PlayerScreenArgs args;
 
@@ -246,12 +243,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _resumeFromOverride = resumeFrom;
       }
       _resumeApplied = false;
-      await _player.open(
-        Media(
-          url,
-          httpHeaders: headers,
-        ),
-      );
+      await _player.open(Media(url, httpHeaders: headers));
       await applyNativePlaybackTune(_player);
       await _player.setVolume(_softwareVolume);
       await _applySelectedSubtitleTrack();
@@ -372,9 +364,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     final int targetMs =
-        ((_duration.inMilliseconds * fraction)
-                    .round()
-                    .clamp(0, _duration.inMilliseconds)
+        ((_duration.inMilliseconds * fraction).round().clamp(
+                  0,
+                  _duration.inMilliseconds,
+                )
                 as num)
             .toInt();
     await _player.seek(Duration(milliseconds: targetMs));
@@ -403,9 +396,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
-  Future<T?> _showPlayerSheet<T>({
-    required WidgetBuilder builder,
-  }) {
+  Future<T?> _showPlayerSheet<T>({required WidgetBuilder builder}) {
     return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: true,
@@ -420,7 +411,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _openPlayerSettingsSheet() async {
     _showControls();
     final bool subtitlesAvailable =
-        _availableCaptions.isNotEmpty || _player.state.tracks.subtitle.isNotEmpty;
+        _availableCaptions.isNotEmpty ||
+        _player.state.tracks.subtitle.isNotEmpty;
 
     await _showPlayerSheet<void>(
       builder: (BuildContext context) {
@@ -465,57 +457,62 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return _PlayerSheetScaffold(
           child: FutureBuilder<ScrapeCatalog>(
             future: _streamService.fetchCatalog(),
-            builder: (BuildContext context, AsyncSnapshot<ScrapeCatalog> snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Padding(
-                  padding: EdgeInsets.all(AppSpacing.x6),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              final List<ScrapeSourceDefinition> sources =
-                  snapshot.data?.sources ?? const <ScrapeSourceDefinition>[];
-
-              return _PlayerOptionSheet(
-                title: 'Sources',
-                trailingText: 'Find next source',
-                onBack: () => Navigator.of(context).pop(),
-                onTrailingTap: () async {
-                  final NavigatorState modalNavigator = Navigator.of(context);
-                  final NavigatorState screenNavigator =
-                      Navigator.of(this.context);
-                  await _persistProgress();
-                  if (!mounted) {
-                    return;
+            builder:
+                (BuildContext context, AsyncSnapshot<ScrapeCatalog> snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.all(AppSpacing.x6),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
                   }
-                  modalNavigator.pop();
-                  await screenNavigator.pushReplacement(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ScrapingScreen(
-                        mediaItem: widget.args.mediaItem,
-                        season: widget.args.season,
-                        episode: widget.args.episode,
-                      ),
+
+                  final List<ScrapeSourceDefinition> sources =
+                      snapshot.data?.sources ??
+                      const <ScrapeSourceDefinition>[];
+
+                  return _PlayerOptionSheet(
+                    title: 'Sources',
+                    trailingText: 'Find next source',
+                    onBack: () => Navigator.of(context).pop(),
+                    onTrailingTap: () async {
+                      final NavigatorState modalNavigator = Navigator.of(
+                        context,
+                      );
+                      final NavigatorState screenNavigator = Navigator.of(
+                        this.context,
+                      );
+                      await _persistProgress();
+                      if (!mounted) {
+                        return;
+                      }
+                      modalNavigator.pop();
+                      await screenNavigator.pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ScrapingScreen(
+                            mediaItem: widget.args.mediaItem,
+                            season: widget.args.season,
+                            episode: widget.args.episode,
+                          ),
+                        ),
+                      );
+                    },
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: sources.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final ScrapeSourceDefinition source = sources[index];
+                        final bool isCurrent =
+                            source.id == widget.args.streamResult.sourceId;
+
+                        return _PlayerOptionRow(
+                          title: source.name,
+                          selected: isCurrent,
+                          onTap: () => Navigator.of(context).pop(source.id),
+                        );
+                      },
                     ),
                   );
                 },
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: sources.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final ScrapeSourceDefinition source = sources[index];
-                    final bool isCurrent =
-                        source.id == widget.args.streamResult.sourceId;
-
-                    return _PlayerOptionRow(
-                      title: source.name,
-                      selected: isCurrent,
-                      onTap: () => Navigator.of(context).pop(source.id),
-                    );
-                  },
-                ),
-              );
-            },
           ),
         );
       },
@@ -555,8 +552,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               shrinkWrap: true,
               itemCount: qualities.length,
               itemBuilder: (BuildContext context, int index) {
-                final MapEntry<String, StreamQuality> quality = qualities[index];
-                final bool isSelected = _selectedQualityKey == quality.key ||
+                final MapEntry<String, StreamQuality> quality =
+                    qualities[index];
+                final bool isSelected =
+                    _selectedQualityKey == quality.key ||
                     (_selectedQualityKey == null &&
                         widget.args.streamResult.stream.selectedQuality ==
                             quality.key);
@@ -609,7 +608,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     _enableAutoSubtitles();
                   },
                 ),
-                if (AppConfig.hasWyzieApiKey || AppConfig.hasOpensubtitlesApiKey)
+                if (AppConfig.hasWyzieApiKey ||
+                    AppConfig.hasOpensubtitlesApiKey)
                   _PlayerOptionRow(
                     title: 'Search online…',
                     subtitle: 'Wyzie & OpenSubtitles',
@@ -624,8 +624,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     in groupedCaptions.entries)
                   _PlayerOptionRow(
                     title: entry.key,
-                    subtitle: '${entry.value.length} track${entry.value.length == 1 ? '' : 's'}',
-                    selected: _selectedCaption != null &&
+                    subtitle:
+                        '${entry.value.length} track${entry.value.length == 1 ? '' : 's'}',
+                    selected:
+                        _selectedCaption != null &&
                         entry.value.contains(_selectedCaption),
                     showChevron: true,
                     onTap: () {
@@ -755,10 +757,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           language: offer.languageLabel,
         ),
       );
-      _setSubtitleState(
-        enabled: true,
-        message: offer.providerLabel,
-      );
+      _setSubtitleState(enabled: true, message: offer.providerLabel);
       _showControls();
     } catch (_) {
       if (mounted) {
@@ -824,7 +823,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         ),
       );
-
     } catch (error) {
       if (!mounted) {
         return;
@@ -883,8 +881,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _onVerticalDragStart(DragStartDetails details) {
     final MediaQueryData mq = MediaQuery.of(context);
-    final double width =
-        mq.size.width - mq.padding.left - mq.padding.right;
+    final double width = mq.size.width - mq.padding.left - mq.padding.right;
     if (width <= 0) {
       return;
     }
@@ -915,15 +912,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     if (_edgeSwipe == _PlayerEdgeSwipe.brightness) {
-      final double next = (_edgeSwipeStartBrightness + (-_edgeSwipeAccumDy / travel))
-          .clamp(0.03, 1.0);
+      final double next =
+          (_edgeSwipeStartBrightness + (-_edgeSwipeAccumDy / travel)).clamp(
+            0.03,
+            1.0,
+          );
       if ((next - _screenBrightness).abs() < 0.004) {
         return;
       }
       _screenBrightness = next;
       try {
-        await ScreenBrightness.instance
-            .setApplicationScreenBrightness(_screenBrightness);
+        await ScreenBrightness.instance.setApplicationScreenBrightness(
+          _screenBrightness,
+        );
       } catch (_) {
         // Ignore device-specific failures.
       }
@@ -939,8 +940,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     if (_edgeSwipe == _PlayerEdgeSwipe.volume) {
       final double next =
-          (_edgeSwipeStartVolume + (-_edgeSwipeAccumDy / travel) * 150)
-              .clamp(0, 150);
+          (_edgeSwipeStartVolume + (-_edgeSwipeAccumDy / travel) * 150).clamp(
+            0,
+            150,
+          );
       if ((next - _softwareVolume).abs() < 0.5) {
         return;
       }
@@ -961,10 +964,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _edgeSwipeAccumDy = 0;
   }
 
-  void _flashGestureHint({
-    required IconData icon,
-    required String label,
-  }) {
+  void _flashGestureHint({required IconData icon, required String label}) {
     _gestureHintTimer?.cancel();
     setState(() {
       _gestureHintIcon = icon;
@@ -1002,8 +1002,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       child: Text(
                         'Brightness',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.typeEmphasis,
-                            ),
+                          color: AppColors.typeEmphasis,
+                        ),
                       ),
                     ),
                     TextButton(
@@ -1096,8 +1096,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       child: Text(
                         'Volume',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.typeEmphasis,
-                            ),
+                          color: AppColors.typeEmphasis,
+                        ),
                       ),
                     ),
                     TextButton(
@@ -1273,125 +1273,122 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
                 Center(
-                child: _hasPlaybackError
-                    ? _PlaybackErrorCard(
-                        message: _playbackError ?? 'Playback failed.',
-                      )
-                    : _sourceSwitching
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const CircularProgressIndicator(),
-                          const SizedBox(height: AppSpacing.x3),
-                          Text(
-                            'Switching source...',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: AppColors.typeEmphasis),
-                          ),
-                        ],
-                      )
-                    : !_playerReady
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(
-                            Icons.play_circle_fill_rounded,
-                            color: AppColors.typeEmphasis.withValues(
-                              alpha: 0.18,
+                  child: _hasPlaybackError
+                      ? _PlaybackErrorCard(
+                          message: _playbackError ?? 'Playback failed.',
+                        )
+                      : _sourceSwitching
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: AppSpacing.x3),
+                            Text(
+                              'Switching source...',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(color: AppColors.typeEmphasis),
                             ),
-                            size: MediaQuery.sizeOf(context).shortestSide *
-                                0.24,
-                          ),
-                          const SizedBox(height: AppSpacing.x3),
-                          Text(
-                            _playerReady ? 'Streaming' : 'Loading stream...',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(
-                                  color: AppColors.typeEmphasis,
-                                ),
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              if (_buffering && !_hasPlaybackError)
-                const Center(
-                  child: RepaintBoundary(
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-              if (_subtitleToast != null)
-                Positioned(
-                  top: AppSpacing.x8,
-                  left: AppSpacing.x0,
-                  right: AppSpacing.x0,
-                  child: RepaintBoundary(
-                    child: AnimatedOpacity(
-                      opacity: _subtitleToast == null ? 0 : 1,
-                      duration: const Duration(milliseconds: 180),
-                      child: Center(
-                        child: PlayerInfoPill(label: _subtitleToast!),
-                      ),
-                    ),
-                  ),
-                ),
-              if (_gestureHint != null)
-                Positioned(
-                  left: AppSpacing.x4,
-                  right: AppSpacing.x4,
-                  bottom: MediaQuery.sizeOf(context).height * 0.22,
-                  child: RepaintBoundary(
-                    child: Center(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.videoContextBackground
-                              .withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(AppSpacing.x4),
-                          border: Border.all(
-                            color: AppColors.videoContextBorder,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.x4,
-                            vertical: AppSpacing.x3,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              if (_gestureHintIcon != null)
-                                Icon(
-                                  _gestureHintIcon,
-                                  color: AppColors.typeEmphasis,
-                                  size: AppSpacing.x6,
-                                ),
-                              if (_gestureHintIcon != null)
-                                const SizedBox(width: AppSpacing.x2),
-                              Flexible(
-                                child: Text(
-                                  _gestureHint!,
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(color: AppColors.typeEmphasis),
-                                ),
+                          ],
+                        )
+                      : !_playerReady
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: AppColors.typeEmphasis.withValues(
+                                alpha: 0.18,
                               ),
-                            ],
+                              size:
+                                  MediaQuery.sizeOf(context).shortestSide *
+                                  0.24,
+                            ),
+                            const SizedBox(height: AppSpacing.x3),
+                            Text(
+                              _playerReady ? 'Streaming' : 'Loading stream...',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(color: AppColors.typeEmphasis),
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                if (_buffering && !_hasPlaybackError)
+                  const Center(
+                    child: RepaintBoundary(child: CircularProgressIndicator()),
+                  ),
+                if (_subtitleToast != null)
+                  Positioned(
+                    top: AppSpacing.x8,
+                    left: AppSpacing.x0,
+                    right: AppSpacing.x0,
+                    child: RepaintBoundary(
+                      child: AnimatedOpacity(
+                        opacity: _subtitleToast == null ? 0 : 1,
+                        duration: const Duration(milliseconds: 180),
+                        child: Center(
+                          child: PlayerInfoPill(label: _subtitleToast!),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_gestureHint != null)
+                  Positioned(
+                    left: AppSpacing.x4,
+                    right: AppSpacing.x4,
+                    bottom: MediaQuery.sizeOf(context).height * 0.22,
+                    child: RepaintBoundary(
+                      child: Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.videoContextBackground.withValues(
+                              alpha: 0.82,
+                            ),
+                            borderRadius: BorderRadius.circular(AppSpacing.x4),
+                            border: Border.all(
+                              color: AppColors.videoContextBorder,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.x4,
+                              vertical: AppSpacing.x3,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                if (_gestureHintIcon != null)
+                                  Icon(
+                                    _gestureHintIcon,
+                                    color: AppColors.typeEmphasis,
+                                    size: AppSpacing.x6,
+                                  ),
+                                if (_gestureHintIcon != null)
+                                  const SizedBox(width: AppSpacing.x2),
+                                Flexible(
+                                  child: Text(
+                                    _gestureHint!,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: AppColors.typeEmphasis,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
                 PlayerControls(
                   visible: _controlsVisible,
                   mediaTitle: title,
-                  sourceLabel: widget.args.streamResult.embedName ??
+                  sourceLabel:
+                      widget.args.streamResult.embedName ??
                       widget.args.streamResult.sourceName,
                   qualityLabel: _currentQualityLabel,
                   subtitleLabel: _currentSubtitleLabel,
@@ -1472,7 +1469,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String get _currentQualityLabel {
     return _selectedQualityKey ??
         widget.args.streamResult.stream.selectedQuality ??
-        (_availableQualities.isNotEmpty ? _availableQualities.first.key : 'Auto');
+        (_availableQualities.isNotEmpty
+            ? _availableQualities.first.key
+            : 'Auto');
   }
 
   String get _currentSubtitleLabel {
@@ -1557,8 +1556,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _openStream(resumeFrom: resumeFrom);
     _setSubtitleState(
       enabled: _subtitlesEnabled,
-      message:
-          qualityKey == null ? 'Automatic quality enabled' : 'Quality: $qualityKey',
+      message: qualityKey == null
+          ? 'Automatic quality enabled'
+          : 'Quality: $qualityKey',
     );
   }
 
@@ -1605,10 +1605,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _showControls();
   }
 
-  void _setSubtitleState({
-    required bool enabled,
-    required String message,
-  }) {
+  void _setSubtitleState({required bool enabled, required String message}) {
     if (!mounted) {
       return;
     }
@@ -1815,10 +1812,7 @@ class _PlayerSettingsHomeSheet extends StatelessWidget {
                 subtitle: subtitleLabel,
                 onTap: onSubtitlesTap,
               ),
-              _PlayerSettingsCard(
-                title: 'Audio',
-                subtitle: audioLabel,
-              ),
+              _PlayerSettingsCard(title: 'Audio', subtitle: audioLabel),
             ],
           ),
           const SizedBox(height: AppSpacing.x5),
@@ -1836,7 +1830,8 @@ class _PlayerSettingsHomeSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.x3),
           const _PlayerInlineInfoRow(
             title: 'Playback settings',
-            subtitle: 'Quality, source, subtitles, and stream-specific options.',
+            subtitle:
+                'Quality, source, subtitles, and stream-specific options.',
           ),
         ],
       ),
@@ -1857,7 +1852,8 @@ class _PlayerSettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double width = (MediaQuery.sizeOf(context).width - AppSpacing.x12) / 2;
+    final double width =
+        (MediaQuery.sizeOf(context).width - AppSpacing.x12) / 2;
     return SizedBox(
       width: width.clamp(140, 220).toDouble(),
       child: Material(
@@ -1877,8 +1873,8 @@ class _PlayerSettingsCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.typeEmphasis,
-                      ),
+                    color: AppColors.typeEmphasis,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.x2),
                 Text(
@@ -1886,8 +1882,8 @@ class _PlayerSettingsCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.typeSecondary,
-                      ),
+                    color: AppColors.typeSecondary,
+                  ),
                 ),
               ],
             ),
@@ -1936,8 +1932,8 @@ class _PlayerOptionSheet extends StatelessWidget {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.typeEmphasis,
-                      ),
+                    color: AppColors.typeEmphasis,
+                  ),
                 ),
               ),
               if (trailingText != null)
@@ -1946,10 +1942,7 @@ class _PlayerOptionSheet extends StatelessWidget {
                   child: Text(trailingText!),
                 ),
               if (trailingIcon != null)
-                IconButton(
-                  onPressed: onTrailingTap,
-                  icon: Icon(trailingIcon),
-                ),
+                IconButton(onPressed: onTrailingTap, icon: Icon(trailingIcon)),
             ],
           ),
           const SizedBox(height: AppSpacing.x3),
@@ -2007,10 +2000,10 @@ class _PlayerOptionRow extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: selected
-                                ? AppColors.typeEmphasis
-                                : AppColors.typeText,
-                          ),
+                        color: selected
+                            ? AppColors.typeEmphasis
+                            : AppColors.typeText,
+                      ),
                     ),
                     if (subtitle != null) ...<Widget>[
                       const SizedBox(height: AppSpacing.x1),
@@ -2063,7 +2056,8 @@ class _OnlineSubtitleSearchSheet extends StatefulWidget {
       _OnlineSubtitleSearchSheetState();
 }
 
-class _OnlineSubtitleSearchSheetState extends State<_OnlineSubtitleSearchSheet> {
+class _OnlineSubtitleSearchSheetState
+    extends State<_OnlineSubtitleSearchSheet> {
   late Future<List<ExternalSubtitleOffer>> _future;
 
   @override
@@ -2093,82 +2087,83 @@ class _OnlineSubtitleSearchSheetState extends State<_OnlineSubtitleSearchSheet> 
       },
       child: FutureBuilder<List<ExternalSubtitleOffer>>(
         future: _future,
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<ExternalSubtitleOffer>> snapshot,
-        ) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.x8),
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.all(AppSpacing.x5),
-              child: Text(
-                '${snapshot.error}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.typeText,
-                    ),
-              ),
-            );
-          }
-          final List<ExternalSubtitleOffer> offers =
-              snapshot.data ?? const <ExternalSubtitleOffer>[];
-          if (offers.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.all(AppSpacing.x5),
-              child: Text(
-                'No online subtitles found. Check keys or try another episode.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.typeText,
-                    ),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.only(bottom: AppSpacing.x4),
-            itemCount: offers.length,
-            separatorBuilder: (BuildContext context, int index) =>
-                const SizedBox(height: AppSpacing.x2),
-            itemBuilder: (BuildContext context, int index) {
-              final ExternalSubtitleOffer offer = offers[index];
-              return Material(
-                color: AppColors.dropdownAltBackground,
-                borderRadius: BorderRadius.circular(AppSpacing.x4),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppSpacing.x4),
-                  onTap: () => widget.onPick(offer),
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<ExternalSubtitleOffer>> snapshot,
+            ) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.x4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          offer.title,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: AppColors.typeEmphasis,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: AppSpacing.x2),
-                        Text(
-                          '${offer.languageLabel} · ${offer.providerLabel}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.typeSecondary,
-                              ),
-                        ),
-                      ],
-                    ),
+                    padding: EdgeInsets.all(AppSpacing.x8),
+                    child: CircularProgressIndicator(),
                   ),
-                ),
+                );
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(AppSpacing.x5),
+                  child: Text(
+                    '${snapshot.error}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: AppColors.typeText),
+                  ),
+                );
+              }
+              final List<ExternalSubtitleOffer> offers =
+                  snapshot.data ?? const <ExternalSubtitleOffer>[];
+              if (offers.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(AppSpacing.x5),
+                  child: Text(
+                    'No online subtitles found. Check keys or try another episode.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: AppColors.typeText),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.only(bottom: AppSpacing.x4),
+                itemCount: offers.length,
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(height: AppSpacing.x2),
+                itemBuilder: (BuildContext context, int index) {
+                  final ExternalSubtitleOffer offer = offers[index];
+                  return Material(
+                    color: AppColors.dropdownAltBackground,
+                    borderRadius: BorderRadius.circular(AppSpacing.x4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(AppSpacing.x4),
+                      onTap: () => widget.onPick(offer),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.x4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              offer.title,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: AppColors.typeEmphasis,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: AppSpacing.x2),
+                            Text(
+                              '${offer.languageLabel} · ${offer.providerLabel}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.typeSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
       ),
     );
   }
@@ -2222,8 +2217,8 @@ class _PlayerCaptionRow extends StatelessWidget {
                 child: Text(
                   _languageBadge(caption.language),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.typeEmphasis,
-                      ),
+                    color: AppColors.typeEmphasis,
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.x3),
@@ -2234,8 +2229,8 @@ class _PlayerCaptionRow extends StatelessWidget {
                     Text(
                       caption.label ?? caption.language ?? 'Subtitle track',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.typeEmphasis,
-                          ),
+                        color: AppColors.typeEmphasis,
+                      ),
                     ),
                     if (badges.isNotEmpty) ...<Widget>[
                       const SizedBox(height: AppSpacing.x2),
@@ -2251,17 +2246,14 @@ class _PlayerCaptionRow extends StatelessWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   color: AppColors.blackC125,
-                                  borderRadius:
-                                      BorderRadius.circular(AppSpacing.x2),
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.x2,
+                                  ),
                                 ),
                                 child: Text(
                                   badge.toUpperCase(),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
-                                      ?.copyWith(
-                                        color: AppColors.typeEmphasis,
-                                      ),
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(color: AppColors.typeEmphasis),
                                 ),
                               ),
                             )
@@ -2310,34 +2302,25 @@ class _PlayerToggleRow extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: enabled
-                          ? AppColors.typeEmphasis
-                          : AppColors.typeSecondary,
-                    ),
+                  color: enabled
+                      ? AppColors.typeEmphasis
+                      : AppColors.typeSecondary,
+                ),
               ),
               const SizedBox(height: AppSpacing.x1),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
         ),
         const SizedBox(width: AppSpacing.x3),
-        Switch(
-          value: value,
-          onChanged: enabled ? onChanged : null,
-        ),
+        Switch(value: value, onChanged: enabled ? onChanged : null),
       ],
     );
   }
 }
 
 class _PlayerInlineInfoRow extends StatelessWidget {
-  const _PlayerInlineInfoRow({
-    required this.title,
-    required this.subtitle,
-  });
+  const _PlayerInlineInfoRow({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -2356,10 +2339,7 @@ class _PlayerInlineInfoRow extends StatelessWidget {
             ],
           ),
         ),
-        const Icon(
-          Icons.chevron_right_rounded,
-          color: AppColors.typeSecondary,
-        ),
+        const Icon(Icons.chevron_right_rounded, color: AppColors.typeSecondary),
       ],
     );
   }

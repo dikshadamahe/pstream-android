@@ -10,7 +10,8 @@ import 'package:pstream_android/models/stream_result.dart';
 import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/player_screen.dart';
 import 'package:pstream_android/services/stream_service.dart';
-import 'package:pstream_android/widgets/scrape_source_card.dart' show ScrapeStatus;
+import 'package:pstream_android/widgets/scrape_source_card.dart'
+    show ScrapeStatus;
 
 class ScrapingScreenArgs {
   const ScrapingScreenArgs({
@@ -120,18 +121,18 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
           seasonTitle: widget.seasonTitle,
         )
         .listen(
-      _handleEvent,
-      onError: _handleError,
-      onDone: () {
-        if (!_hasSuccess() && mounted) {
-          setState(() {
-            _isLoading = false;
-            _allFailure = true;
-            _failureMessage ??= 'No sources found';
-          });
-        }
-      },
-    );
+          _handleEvent,
+          onError: _handleError,
+          onDone: () {
+            if (!_hasSuccess() && mounted) {
+              setState(() {
+                _isLoading = false;
+                _allFailure = true;
+                _failureMessage ??= 'No sources found';
+              });
+            }
+          },
+        );
   }
 
   void _handleEvent(ScrapeEvent event) {
@@ -224,10 +225,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     setState(() {
       for (final ScrapeSourceDefinition source in sources) {
         if (!_nodes.containsKey(source.id)) {
-          _nodes[source.id] = _ScrapeNode(
-            id: source.id,
-            name: source.name,
-          );
+          _nodes[source.id] = _ScrapeNode(id: source.id, name: source.name);
           _sourceOrder.add(source.id);
         } else if (_nodes[source.id]!.name.isEmpty && source.name.isNotEmpty) {
           _nodes[source.id] = _nodes[source.id]!.copyWith(name: source.name);
@@ -253,15 +251,12 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         final String embedName = embed.name.isNotEmpty
             ? embed.name
             : _embedNameByScraperId[embed.embedScraperId] ??
-                embed.embedScraperId ??
-                embed.id;
+                  embed.embedScraperId ??
+                  embed.id;
 
         _nodes.putIfAbsent(
           embed.id,
-          () => _ScrapeNode(
-            id: embed.id,
-            name: embedName,
-          ),
+          () => _ScrapeNode(id: embed.id, name: embedName),
         );
         _statuses.putIfAbsent(embed.id, () => ScrapeStatus.waiting);
         if (!children.contains(embed.id)) {
@@ -420,9 +415,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     final int attemptedCount = _attemptedSourceIds.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Finding stream'),
-      ),
+      appBar: AppBar(title: const Text('Finding stream')),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -438,7 +431,9 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                     controller: _scrollController,
                     padding: const EdgeInsets.all(AppSpacing.x4),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 560),
@@ -449,15 +444,16 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                               Text(
                                 widget.mediaItem.title,
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: AppSpacing.x2),
                               Text(
                                 _statusMessage(attemptedCount),
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: AppColors.typeText,
-                                    ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: AppColors.typeText),
                               ),
                               const SizedBox(height: AppSpacing.x5),
                               if (activeSource != null)
@@ -476,7 +472,9 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                                 Text(
                                   'Recent attempts',
                                   textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: AppSpacing.x3),
                                 Wrap(
@@ -486,15 +484,19 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                                   children: _attemptedSourceIds
                                       .take(6)
                                       .map((String sourceId) {
-                                    final _ScrapeNode? node = _nodes[sourceId];
-                                    if (node == null) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return _AttemptChip(
-                                      label: node.name,
-                                      status: _statuses[sourceId] ?? ScrapeStatus.waiting,
-                                    );
-                                  }).toList(growable: false),
+                                        final _ScrapeNode? node =
+                                            _nodes[sourceId];
+                                        if (node == null) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return _AttemptChip(
+                                          label: node.name,
+                                          status:
+                                              _statuses[sourceId] ??
+                                              ScrapeStatus.waiting,
+                                        );
+                                      })
+                                      .toList(growable: false),
                                 ),
                               ],
                             ],
@@ -541,7 +543,8 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     }
 
     for (final String sourceId in _sourceOrder) {
-      if ((_statuses[sourceId] ?? ScrapeStatus.waiting) == ScrapeStatus.pending) {
+      if ((_statuses[sourceId] ?? ScrapeStatus.waiting) ==
+          ScrapeStatus.pending) {
         return _nodes[sourceId];
       }
     }
@@ -597,10 +600,7 @@ class _ScrapeNode {
   final String name;
   final List<String> embedIds;
 
-  _ScrapeNode copyWith({
-    String? name,
-    List<String>? embedIds,
-  }) {
+  _ScrapeNode copyWith({String? name, List<String>? embedIds}) {
     return _ScrapeNode(
       id: id,
       name: name ?? this.name,
@@ -610,10 +610,7 @@ class _ScrapeNode {
 }
 
 class _ActiveSourceCard extends StatefulWidget {
-  const _ActiveSourceCard({
-    required this.sourceName,
-    required this.embedCount,
-  });
+  const _ActiveSourceCard({required this.sourceName, required this.embedCount});
 
   final String sourceName;
   final int embedCount;
@@ -678,9 +675,9 @@ class _ActiveSourceCardState extends State<_ActiveSourceCard>
                     widget.embedCount > 0
                         ? 'Checking ${widget.embedCount} embed option${widget.embedCount == 1 ? '' : 's'}.'
                         : 'Checking the best stream path for this source.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.typeText,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: AppColors.typeText),
                   ),
                 ],
               ),
@@ -766,20 +763,14 @@ class _IdleScrapeCard extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.x5),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
+        child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
       ),
     );
   }
 }
 
 class _AttemptChip extends StatelessWidget {
-  const _AttemptChip({
-    required this.label,
-    required this.status,
-  });
+  const _AttemptChip({required this.label, required this.status});
 
   final String label;
   final ScrapeStatus status;
@@ -788,8 +779,8 @@ class _AttemptChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color tint = switch (status) {
       ScrapeStatus.success => AppColors.videoScrapingSuccess,
-      ScrapeStatus.failure || ScrapeStatus.notfound =>
-        AppColors.videoScrapingError,
+      ScrapeStatus.failure ||
+      ScrapeStatus.notfound => AppColors.videoScrapingError,
       ScrapeStatus.pending => AppColors.videoScrapingLoading,
       ScrapeStatus.waiting => AppColors.typeSecondary,
     };
@@ -818,9 +809,9 @@ class _AttemptChip extends StatelessWidget {
             const SizedBox(width: AppSpacing.x2),
             Text(
               label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.typeEmphasis,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: AppColors.typeEmphasis),
             ),
           ],
         ),

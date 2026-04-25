@@ -10,21 +10,14 @@ import 'package:pstream_android/providers/tmdb_provider.dart';
 import 'package:pstream_android/widgets/media_card.dart';
 
 class SearchScreenArgs {
-  const SearchScreenArgs({
-    this.initialQuery,
-    this.title,
-  });
+  const SearchScreenArgs({this.initialQuery, this.title});
 
   final String? initialQuery;
   final String? title;
 }
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({
-    super.key,
-    this.initialQuery,
-    this.title,
-  });
+  const SearchScreen({super.key, this.initialQuery, this.title});
 
   final String? initialQuery;
   final String? title;
@@ -82,12 +75,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!AppConfig.hasTmdbReadToken) {
       return Scaffold(
         backgroundColor: AppColors.backgroundMain,
-        appBar: AppBar(title: const Text('Search')),
-        body: const SafeArea(
-          child: _SearchMessageState(
-            title: 'Search is unavailable.',
-            message:
-                'This build is missing TMDB_TOKEN. Rebuild or re-release the app with the TMDB read access token configured in GitHub secrets.',
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.x4),
+            children: const <Widget>[
+              _SearchMessageState(
+                title: 'Search is unavailable.',
+                message:
+                    'This build is missing TMDB_TOKEN. Rebuild or re-release the app with the TMDB read access token configured in GitHub secrets.',
+              ),
+            ],
           ),
         ),
       );
@@ -98,61 +95,134 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ? ref.watch(searchProvider(_query))
         : ref.watch(trendingMoviesProvider);
 
+    final WindowClass layoutClass = windowClass(context);
+    final double horizontal = switch (layoutClass) {
+      WindowClass.compact => AppSpacing.x4,
+      WindowClass.medium => AppSpacing.x5,
+      WindowClass.expanded => AppSpacing.x6,
+    };
+
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
-      appBar: AppBar(
-        titleSpacing: AppSpacing.x4,
-        title: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: AppColors.searchText),
-          decoration: InputDecoration(
-            hintText: 'Search titles, actors, or directors',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: hasQuery
-                ? IconButton(
-                    onPressed: () {
-                      _controller.clear();
-                    },
-                    icon: const Icon(Icons.close_rounded),
-                  )
-                : null,
-          ),
-        ),
-      ),
       body: SafeArea(
-        child: data.when(
-          data: (List<MediaItem> items) {
-            if (items.isEmpty) {
-              return _SearchMessageState(
-                title: hasQuery ? 'No results found.' : 'Nothing to show yet.',
-                message: hasQuery
-                    ? 'Try a different title or keyword.'
-                    : 'Trending suggestions came back empty.',
-              );
-            }
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                AppSpacing.x4,
+                horizontal,
+                AppSpacing.x3,
+              ),
+              child: Material(
+                color: AppColors.searchPillSurface,
+                borderRadius: BorderRadius.circular(
+                  AppSpacing.x4 + AppSpacing.x1,
+                ),
+                child: Row(
+                  children: <Widget>[
+                    const SizedBox(width: AppSpacing.x3),
+                    Icon(
+                      Icons.search_rounded,
+                      color: AppColors.searchPillOnSurface.withValues(
+                        alpha: 0.55,
+                      ),
+                      size: AppSpacing.x5,
+                    ),
+                    const SizedBox(width: AppSpacing.x2),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.searchPillOnSurface,
+                        ),
+                        cursorColor: AppColors.streamSectionAccent,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Search titles, people, or studios',
+                          hintStyle: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: AppColors.searchPillOnSurface.withValues(
+                                  alpha: 0.45,
+                                ),
+                              ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.x3,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (hasQuery)
+                      IconButton(
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        onPressed: () => _controller.clear(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: AppColors.searchPillOnSurface.withValues(
+                            alpha: 0.55,
+                          ),
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.x2),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppColors.searchPillOnSurface.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: data.when(
+                data: (List<MediaItem> items) {
+                  if (items.isEmpty) {
+                    return _SearchMessageState(
+                      title: hasQuery
+                          ? 'No results found.'
+                          : 'Nothing to show yet.',
+                      message: hasQuery
+                          ? 'Try a different title or keyword.'
+                          : 'Trending suggestions came back empty.',
+                    );
+                  }
 
-            return _SearchResultsGrid(
-              title: hasQuery
-                  ? widget.title
-                  : 'Trending Suggestions',
-              items: items,
-              isLoading: false,
-            );
-          },
-          loading: () => _SearchResultsGrid(
-            title: hasQuery ? widget.title : 'Trending Suggestions',
-            items: const <MediaItem>[],
-            isLoading: true,
-          ),
-          error: (Object error, StackTrace stackTrace) {
-            return _SearchMessageState(
-              title: 'Could not load search data.',
-              message: _friendlySearchMessage(error),
-            );
-          },
+                  return _SearchResultsGrid(
+                    title: hasQuery
+                        ? (widget.title ?? 'Results')
+                        : 'Trending suggestions',
+                    items: items,
+                    isLoading: false,
+                    horizontalPadding: horizontal,
+                  );
+                },
+                loading: () => _SearchResultsGrid(
+                  title: hasQuery
+                      ? (widget.title ?? 'Results')
+                      : 'Trending suggestions',
+                  items: const <MediaItem>[],
+                  isLoading: true,
+                  horizontalPadding: horizontal,
+                ),
+                error: (Object error, StackTrace stackTrace) {
+                  return _SearchMessageState(
+                    title: 'Could not load search data.',
+                    message: _friendlySearchMessage(error),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -161,14 +231,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
 class _SearchResultsGrid extends StatelessWidget {
   const _SearchResultsGrid({
-    this.title,
+    required this.title,
     required this.items,
     required this.isLoading,
+    required this.horizontalPadding,
   });
 
-  final String? title;
+  final String title;
   final List<MediaItem> items;
   final bool isLoading;
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -183,24 +255,29 @@ class _SearchResultsGrid extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (title != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.x4,
-              AppSpacing.x4,
-              AppSpacing.x4,
-              AppSpacing.x2,
-            ),
-            child: Text(
-              title!,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(color: AppColors.typeEmphasis),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            AppSpacing.x2,
+            horizontalPadding,
+            AppSpacing.x2,
+          ),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppColors.streamSectionAccent,
+              fontWeight: FontWeight.w700,
             ),
           ),
+        ),
         Expanded(
           child: GridView.builder(
-            padding: const EdgeInsets.all(AppSpacing.x4),
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              AppSpacing.x2,
+              horizontalPadding,
+              AppSpacing.x4,
+            ),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
               crossAxisSpacing: AppSpacing.x3,
@@ -210,16 +287,15 @@ class _SearchResultsGrid extends StatelessWidget {
             itemCount: itemCount,
             itemBuilder: (BuildContext context, int index) {
               if (isLoading) {
-                return const MediaCardSkeleton();
+                return const RepaintBoundary(child: MediaCardSkeleton());
               }
 
               if (items.isEmpty) {
                 return const SizedBox.shrink();
               }
 
-              return MediaCard(
-                mediaItem: items[index],
-                posterSize: 'w185',
+              return RepaintBoundary(
+                child: MediaCard(mediaItem: items[index], posterSize: 'w185'),
               );
             },
           ),
@@ -230,10 +306,7 @@ class _SearchResultsGrid extends StatelessWidget {
 }
 
 class _SearchMessageState extends StatelessWidget {
-  const _SearchMessageState({
-    required this.title,
-    required this.message,
-  });
+  const _SearchMessageState({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -245,21 +318,37 @@ class _SearchMessageState extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.x6),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.modalBackground,
+              borderRadius: BorderRadius.circular(AppSpacing.x5),
+              border: Border.all(color: AppColors.dropdownBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.x6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    Icons.search_off_rounded,
+                    size: AppSpacing.x10,
+                    color: AppColors.streamSectionAccent,
+                  ),
+                  const SizedBox(height: AppSpacing.x4),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.x2),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.x2),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+            ),
           ),
         ),
       ),

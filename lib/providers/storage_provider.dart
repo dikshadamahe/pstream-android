@@ -33,50 +33,51 @@ final historyProvider = Provider<List<MediaItem>>((Ref ref) {
       .toList(growable: false);
 });
 
-final bookmarkStatusProvider = Provider.family<bool, MediaItem>((Ref ref, MediaItem mediaItem) {
+final bookmarkStatusProvider = Provider.family<bool, MediaItem>((
+  Ref ref,
+  MediaItem mediaItem,
+) {
   ref.watch(storageRevisionProvider);
   return LocalStorage.isBookmarked(mediaItem);
 });
 
 final progressEntryProvider =
     Provider.family<Map<String, dynamic>?, ProgressRequest>((
-  Ref ref,
-  ProgressRequest request,
-) {
-  ref.watch(storageRevisionProvider);
-  return LocalStorage.getProgress(
-    LocalStorage.mediaKey(
-      request.mediaItem,
-      season: request.season,
-      episode: request.episode,
-    ),
-  );
-});
+      Ref ref,
+      ProgressRequest request,
+    ) {
+      ref.watch(storageRevisionProvider);
+      return LocalStorage.getProgress(
+        LocalStorage.mediaKey(
+          request.mediaItem,
+          season: request.season,
+          episode: request.episode,
+        ),
+      );
+    });
 
 final latestEpisodeSelectionProvider =
     Provider.family<LatestEpisodeSelection?, MediaItem>((
-  Ref ref,
-  MediaItem mediaItem,
-) {
-  ref.watch(storageRevisionProvider);
-  final Map<String, dynamic>? latest = LocalStorage.getLatestEpisodeProgress(
-    mediaItem,
-  );
-  final String? mediaKey = latest?['mediaKey'] as String?;
-  if (mediaKey == null) {
-    return null;
-  }
-  final EpisodeSelectionData? selection = LocalStorage.parseEpisodeSelection(
-    mediaKey,
-  );
-  if (selection == null) {
-    return null;
-  }
-  return LatestEpisodeSelection(
-    season: selection.season,
-    episode: selection.episode,
-  );
-});
+      Ref ref,
+      MediaItem mediaItem,
+    ) {
+      ref.watch(storageRevisionProvider);
+      final Map<String, dynamic>? latest =
+          LocalStorage.getLatestEpisodeProgress(mediaItem);
+      final String? mediaKey = latest?['mediaKey'] as String?;
+      if (mediaKey == null) {
+        return null;
+      }
+      final EpisodeSelectionData? selection =
+          LocalStorage.parseEpisodeSelection(mediaKey);
+      if (selection == null) {
+        return null;
+      }
+      return LatestEpisodeSelection(
+        season: selection.season,
+        episode: selection.episode,
+      );
+    });
 
 final storageControllerProvider = Provider<StorageController>((Ref ref) {
   return StorageController(ref);
@@ -119,11 +120,7 @@ class StorageController {
     bool refresh = true,
   }) async {
     await LocalStorage.saveProgress(
-      LocalStorage.mediaKey(
-        mediaItem,
-        season: season,
-        episode: episode,
-      ),
+      LocalStorage.mediaKey(mediaItem, season: season, episode: episode),
       positionSecs,
       durationSecs,
       mediaItem,
@@ -135,11 +132,7 @@ class StorageController {
 }
 
 class ProgressRequest {
-  const ProgressRequest({
-    required this.mediaItem,
-    this.season,
-    this.episode,
-  });
+  const ProgressRequest({required this.mediaItem, this.season, this.episode});
 
   final MediaItem mediaItem;
   final int? season;
@@ -158,10 +151,7 @@ class ProgressRequest {
 }
 
 class LatestEpisodeSelection {
-  const LatestEpisodeSelection({
-    required this.season,
-    required this.episode,
-  });
+  const LatestEpisodeSelection({required this.season, required this.episode});
 
   final int season;
   final int episode;

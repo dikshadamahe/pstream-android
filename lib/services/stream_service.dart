@@ -131,51 +131,51 @@ class StreamService {
             .transform(utf8.decoder)
             .transform(const LineSplitter())
             .listen(
-          (String line) {
-            if (line.isEmpty) {
-              flushEvent();
-              return;
-            }
+              (String line) {
+                if (line.isEmpty) {
+                  flushEvent();
+                  return;
+                }
 
-            if (line.startsWith('event:')) {
-              currentEvent = line.substring(6).trim();
-              return;
-            }
+                if (line.startsWith('event:')) {
+                  currentEvent = line.substring(6).trim();
+                  return;
+                }
 
-            if (line.startsWith('data:')) {
-              currentData.add(line.substring(5).trim());
-            }
-          },
-          onDone: () {
-            flushEvent();
-            closeResources();
-            if (!multi.isClosed) {
-              multi.close();
-            }
-          },
-          onError: (Object error, StackTrace stackTrace) async {
-            if (error is TimeoutException) {
-              if (!multi.isClosed) {
-                multi.addError(error, stackTrace);
-                multi.close();
-              }
-              return;
-            }
+                if (line.startsWith('data:')) {
+                  currentData.add(line.substring(5).trim());
+                }
+              },
+              onDone: () {
+                flushEvent();
+                closeResources();
+                if (!multi.isClosed) {
+                  multi.close();
+                }
+              },
+              onError: (Object error, StackTrace stackTrace) async {
+                if (error is TimeoutException) {
+                  if (!multi.isClosed) {
+                    multi.addError(error, stackTrace);
+                    multi.close();
+                  }
+                  return;
+                }
 
-            if (error is _SseConnectionException ||
-                error is http.ClientException) {
-              await emitBlockingFallback();
-              return;
-            }
+                if (error is _SseConnectionException ||
+                    error is http.ClientException) {
+                  await emitBlockingFallback();
+                  return;
+                }
 
-            closeResources();
-            if (!multi.isClosed) {
-              multi.addError(error, stackTrace);
-              multi.close();
-            }
-          },
-          cancelOnError: false,
-        );
+                closeResources();
+                if (!multi.isClosed) {
+                  multi.addError(error, stackTrace);
+                  multi.close();
+                }
+              },
+              cancelOnError: false,
+            );
       } on TimeoutException {
         await emitBlockingFallback();
       } on _SseConnectionException {
@@ -241,8 +241,9 @@ class StreamService {
         return const ScrapeCatalog();
       }
 
-      final Map<String, dynamic> json =
-          Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      final Map<String, dynamic> json = Map<String, dynamic>.from(
+        jsonDecode(response.body) as Map,
+      );
 
       return ScrapeCatalog(
         sources: ((json['sources'] as List?) ?? const <dynamic>[])
@@ -321,8 +322,9 @@ class StreamService {
         return null;
       }
 
-      final Map<String, dynamic> json =
-          Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      final Map<String, dynamic> json = Map<String, dynamic>.from(
+        jsonDecode(response.body) as Map,
+      );
 
       if (response.statusCode != 200) {
         throw Exception(json['error'] ?? 'Blocking scrape failed.');

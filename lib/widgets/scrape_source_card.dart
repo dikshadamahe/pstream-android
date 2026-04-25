@@ -2,13 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:pstream_android/config/app_theme.dart';
 
-enum ScrapeStatus {
-  waiting,
-  pending,
-  success,
-  failure,
-  notfound,
-}
+enum ScrapeStatus { waiting, pending, success, failure, notfound }
 
 class ScrapeSourceCard extends StatelessWidget {
   const ScrapeSourceCard({
@@ -39,10 +33,7 @@ class ScrapeSourceCard extends StatelessWidget {
                 _StatusCircle(status: status),
                 const SizedBox(width: AppSpacing.x3),
                 Expanded(
-                  child: Text(
-                    sourceName,
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  child: Text(sourceName, style: theme.textTheme.titleMedium),
                 ),
               ],
             ),
@@ -88,10 +79,7 @@ class ScrapeSourceCard extends StatelessWidget {
 }
 
 class ScrapeEmbedItem {
-  const ScrapeEmbedItem({
-    required this.name,
-    required this.status,
-  });
+  const ScrapeEmbedItem({required this.name, required this.status});
 
   final String name;
   final ScrapeStatus status;
@@ -114,44 +102,44 @@ class _StatusCircle extends StatelessWidget {
       dimension: size,
       child: switch (status) {
         ScrapeStatus.waiting => _BaseCircle(
-            color: AppColors.videoScrapingNoresult,
-            strokeWidth: strokeWidth,
-            child: const SizedBox.shrink(),
-          ),
+          color: AppColors.videoScrapingNoresult,
+          strokeWidth: strokeWidth,
+          child: const SizedBox.shrink(),
+        ),
         ScrapeStatus.pending => _PendingCircle(
-            size: size,
-            strokeWidth: strokeWidth,
-          ),
+          size: size,
+          strokeWidth: strokeWidth,
+        ),
         ScrapeStatus.success => _BaseCircle(
-            color: AppColors.videoScrapingSuccess,
-            strokeWidth: strokeWidth,
-            fillColor: AppColors.videoScrapingSuccess,
-            child: Icon(
-              Icons.check,
-              size: size * 0.6,
-              color: AppColors.typeEmphasis,
-            ),
+          color: AppColors.videoScrapingSuccess,
+          strokeWidth: strokeWidth,
+          fillColor: AppColors.videoScrapingSuccess,
+          child: Icon(
+            Icons.check,
+            size: size * 0.6,
+            color: AppColors.typeEmphasis,
           ),
+        ),
         ScrapeStatus.failure => _BaseCircle(
-            color: AppColors.videoScrapingError,
-            strokeWidth: strokeWidth,
-            fillColor: AppColors.videoScrapingError,
-            child: Icon(
-              Icons.close,
-              size: size * 0.6,
-              color: AppColors.typeEmphasis,
-            ),
+          color: AppColors.videoScrapingError,
+          strokeWidth: strokeWidth,
+          fillColor: AppColors.videoScrapingError,
+          child: Icon(
+            Icons.close,
+            size: size * 0.6,
+            color: AppColors.typeEmphasis,
           ),
+        ),
         ScrapeStatus.notfound => _BaseCircle(
-            color: AppColors.videoScrapingError,
-            strokeWidth: strokeWidth,
-            fillColor: AppColors.videoScrapingError,
-            child: Icon(
-              Icons.close,
-              size: size * 0.6,
-              color: AppColors.typeEmphasis,
-            ),
+          color: AppColors.videoScrapingError,
+          strokeWidth: strokeWidth,
+          fillColor: AppColors.videoScrapingError,
+          child: Icon(
+            Icons.close,
+            size: size * 0.6,
+            color: AppColors.typeEmphasis,
           ),
+        ),
       },
     );
 
@@ -160,10 +148,7 @@ class _StatusCircle extends StatelessWidget {
 }
 
 class _PendingCircle extends StatelessWidget {
-  const _PendingCircle({
-    required this.size,
-    required this.strokeWidth,
-  });
+  const _PendingCircle({required this.size, required this.strokeWidth});
 
   final double size;
   final double strokeWidth;
@@ -171,32 +156,31 @@ class _PendingCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: AppColors.videoScrapingLoading,
-          width: strokeWidth,
-        ),
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: SweepGradient(
-            colors: <Color>[
-              AppColors.videoScrapingLoading.withValues(alpha: 0.15),
-              AppColors.videoScrapingLoading,
-              AppColors.videoScrapingLoading.withValues(alpha: 0.15),
-            ],
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.videoScrapingLoading,
+              width: strokeWidth,
+            ),
           ),
-        ),
-        child: SizedBox.square(dimension: size),
-      ),
-    )
-        .animate(onPlay: (AnimationController controller) => controller.repeat())
-        .shimmer(
-          duration: 1.seconds,
-          color: AppColors.typeLink,
-        );
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: SweepGradient(
+                colors: <Color>[
+                  AppColors.videoScrapingLoading.withValues(alpha: 0.15),
+                  AppColors.videoScrapingLoading,
+                  AppColors.videoScrapingLoading.withValues(alpha: 0.15),
+                ],
+              ),
+            ),
+            child: SizedBox.square(dimension: size),
+          ),
+        )
+        .animate(
+          onPlay: (AnimationController controller) => controller.repeat(),
+        )
+        .shimmer(duration: 1.seconds, color: AppColors.typeLink);
   }
 }
 
@@ -219,10 +203,7 @@ class _BaseCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: fillColor,
-        border: Border.all(
-          color: color,
-          width: strokeWidth,
-        ),
+        border: Border.all(color: color, width: strokeWidth),
       ),
       child: Center(child: child),
     );

@@ -7,9 +7,13 @@ final streamServiceProvider = Provider<StreamService>((Ref ref) {
   return const StreamService();
 });
 
-final scrapeStreamProvider =
-    StreamProvider.family<ScrapeEvent, ScrapeRequest>((Ref ref, ScrapeRequest request) {
-  return ref.read(streamServiceProvider).scrapeStream(
+final scrapeStreamProvider = StreamProvider.family<ScrapeEvent, ScrapeRequest>((
+  Ref ref,
+  ScrapeRequest request,
+) {
+  return ref
+      .read(streamServiceProvider)
+      .scrapeStream(
         request.mediaItem,
         season: request.season,
         episode: request.episode,
@@ -49,11 +53,11 @@ class ScrapeRequest {
 
   @override
   int get hashCode => Object.hash(
-        mediaItem.hiveKey(),
-        season,
-        episode,
-        seasonTmdbId,
-        episodeTmdbId,
-        seasonTitle,
-      );
+    mediaItem.hiveKey(),
+    season,
+    episode,
+    seasonTmdbId,
+    episodeTmdbId,
+    seasonTitle,
+  );
 }

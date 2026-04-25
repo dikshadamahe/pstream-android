@@ -13,10 +13,7 @@ import 'package:pstream_android/widgets/episode_list_sheet.dart';
 import 'package:shimmer/shimmer.dart';
 
 class DetailScreen extends ConsumerStatefulWidget {
-  const DetailScreen({
-    super.key,
-    required this.mediaItem,
-  });
+  const DetailScreen({super.key, required this.mediaItem});
 
   final MediaItem mediaItem;
 
@@ -99,7 +96,9 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     );
 
     if (!shouldResume && progress != null) {
-      await ref.read(storageControllerProvider).saveProgress(
+      await ref
+          .read(storageControllerProvider)
+          .saveProgress(
             media,
             positionSecs: 0,
             durationSecs: 1,
@@ -161,14 +160,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   @override
   Widget build(BuildContext context) {
     final WindowClass layout = windowClass(context);
-    final double heroHeight = MediaQuery.sizeOf(context).height *
+    final double heroHeight =
+        MediaQuery.sizeOf(context).height *
         (layout == WindowClass.compact ? 0.38 : 0.45);
     final AsyncValue<MediaItem> details = ref.watch(
       detailProvider(
-        DetailRequest(
-          id: widget.mediaItem.tmdbId,
-          type: widget.mediaItem.type,
-        ),
+        DetailRequest(id: widget.mediaItem.tmdbId, type: widget.mediaItem.type),
       ),
     );
     final MediaItem media = details.value ?? widget.mediaItem;
@@ -180,66 +177,64 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
       backgroundColor: AppColors.backgroundMain,
       body: SafeArea(
         child: loadError != null
-            ? _DetailErrorState(
-                media: widget.mediaItem,
-                message: '$loadError',
-              )
+            ? _DetailErrorState(media: widget.mediaItem, message: '$loadError')
             : CustomScrollView(
-            slivers: <Widget>[
-              SliverAppBar(
-                expandedHeight: heroHeight,
-                pinned: true,
-                backgroundColor: AppColors.backgroundMain,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: _DetailBackdrop(media: media),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.x4),
-                  child: layout == WindowClass.compact
-                      ? _DetailBody(
-                          media: media,
-                          isLoading: isLoading,
-                          isBookmarked: isBookmarked,
-                          overviewExpanded: _overviewExpanded,
-                          onToggleBookmark: () => _toggleBookmark(media),
-                          onToggleOverview: () {
-                            setState(() {
-                              _overviewExpanded = !_overviewExpanded;
-                            });
-                          },
-                          onPlay: () => _handlePlay(media),
-                          onCreditTap: _openCreditSearch,
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Expanded(
-                              flex: 2,
-                              child: _DetailBody(
-                                media: media,
-                                isLoading: isLoading,
-                                isBookmarked: isBookmarked,
-                                overviewExpanded: _overviewExpanded,
-                                onToggleBookmark: () => _toggleBookmark(media),
-                                onToggleOverview: () {
-                                  setState(() {
-                                    _overviewExpanded = !_overviewExpanded;
-                                  });
-                                },
-                                onPlay: () => _handlePlay(media),
-                                onCreditTap: _openCreditSearch,
-                              ),
+                slivers: <Widget>[
+                  SliverAppBar(
+                    expandedHeight: heroHeight,
+                    pinned: true,
+                    backgroundColor: AppColors.backgroundMain,
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: _DetailBackdrop(media: media),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.x4),
+                      child: layout == WindowClass.compact
+                          ? _DetailBody(
+                              media: media,
+                              isLoading: isLoading,
+                              isBookmarked: isBookmarked,
+                              overviewExpanded: _overviewExpanded,
+                              onToggleBookmark: () => _toggleBookmark(media),
+                              onToggleOverview: () {
+                                setState(() {
+                                  _overviewExpanded = !_overviewExpanded;
+                                });
+                              },
+                              onPlay: () => _handlePlay(media),
+                              onCreditTap: _openCreditSearch,
+                            )
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Expanded(
+                                  flex: 2,
+                                  child: _DetailBody(
+                                    media: media,
+                                    isLoading: isLoading,
+                                    isBookmarked: isBookmarked,
+                                    overviewExpanded: _overviewExpanded,
+                                    onToggleBookmark: () =>
+                                        _toggleBookmark(media),
+                                    onToggleOverview: () {
+                                      setState(() {
+                                        _overviewExpanded = !_overviewExpanded;
+                                      });
+                                    },
+                                    onPlay: () => _handlePlay(media),
+                                    onCreditTap: _openCreditSearch,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.x6),
+                                Expanded(child: _PosterPanel(media: media)),
+                              ],
                             ),
-                            const SizedBox(width: AppSpacing.x6),
-                            Expanded(child: _PosterPanel(media: media)),
-                          ],
-                        ),
-                ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-        ),
       ),
     );
   }
@@ -291,10 +286,8 @@ class _DetailBackdrop extends StatelessWidget {
           CachedNetworkImage(
             imageUrl: media.backdropUrl()!,
             fit: BoxFit.cover,
-            placeholder: (_, placeholderUrl) =>
-                const _BackdropPlaceholder(),
-            errorWidget: (_, error, stackTrace) =>
-                const _BackdropPlaceholder(),
+            placeholder: (_, placeholderUrl) => const _BackdropPlaceholder(),
+            errorWidget: (_, error, stackTrace) => const _BackdropPlaceholder(),
           )
         else
           const _BackdropPlaceholder(),
@@ -542,10 +535,7 @@ class _PosterPanel extends StatelessWidget {
 }
 
 class _DetailErrorState extends StatelessWidget {
-  const _DetailErrorState({
-    required this.media,
-    required this.message,
-  });
+  const _DetailErrorState({required this.media, required this.message});
 
   final MediaItem media;
   final String message;
@@ -566,9 +556,9 @@ class _DetailErrorState extends StatelessWidget {
           const SizedBox(height: AppSpacing.x5),
           Text(
             media.title,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.typeEmphasis,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(color: AppColors.typeEmphasis),
           ),
           const SizedBox(height: AppSpacing.x3),
           Text(
@@ -578,9 +568,9 @@ class _DetailErrorState extends StatelessWidget {
           const SizedBox(height: AppSpacing.x2),
           Text(
             message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.typeText,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.typeText),
           ),
         ],
       ),

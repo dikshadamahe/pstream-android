@@ -19,11 +19,10 @@ class AppConfig {
   /// New sites (2embed.cc, vidsrcme.su, CinePro, …) only apply after they exist
   /// as ids in `/sources` — see `backend/providers-api/docs/CUSTOM_EMBED_INTEGRATION.md`.
   /// Override with `--dart-define=SCRAPE_SOURCE_ORDER=` (empty) for library default order.
-  static String get scrapeSourceOrder =>
-      const String.fromEnvironment(
-        'SCRAPE_SOURCE_ORDER',
-        defaultValue: 'vidlink,fedapi,fedapidb,ridomovies,rgshows,vidrock',
-      );
+  static String get scrapeSourceOrder => const String.fromEnvironment(
+    'SCRAPE_SOURCE_ORDER',
+    defaultValue: 'vidlink,fedapi,fedapidb,ridomovies,rgshows,vidrock',
+  );
 
   static List<String>? get scrapeSourceOrderList {
     final List<String> ids = scrapeSourceOrder
@@ -61,9 +60,9 @@ class AppConfig {
 
   /// Required by OpenSubtitles.com on every request.
   static String get subtitleHttpUserAgent => const String.fromEnvironment(
-        'SUBTITLE_HTTP_USER_AGENT',
-        defaultValue: 'Veil 1.0.0',
-      );
+    'SUBTITLE_HTTP_USER_AGENT',
+    defaultValue: 'Veil 1.0.0',
+  );
 
   static bool get isDefaultLocalOracleUrl {
     return proxyBaseUrl == 'http://127.0.0.1:3001' ||
