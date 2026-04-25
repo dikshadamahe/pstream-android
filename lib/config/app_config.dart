@@ -15,11 +15,15 @@ class AppConfig {
 
   /// Comma-separated `@p-stream/providers` sourcerer ids (see `id` on each
   /// scraper). Sent as `sourceOrder` so Oracle tries fast mirrors first.
-  /// Override with `--dart-define=SCRAPE_SOURCE_ORDER=` (empty) to use library default order.
+  /// Names map to upstream ids: AutoEmbed→autoembed, VidSrc-style→vidsrcvip,
+  /// multi-host embed→multiembed, embed.su→embedsu. CinePro / literal 2Embed
+  /// are not ids in the public package until added there.
+  /// Override with `--dart-define=SCRAPE_SOURCE_ORDER=` (empty) for library default order.
   static String get scrapeSourceOrder =>
       const String.fromEnvironment(
         'SCRAPE_SOURCE_ORDER',
-        defaultValue: 'vidlink,autoembed,insertunit',
+        defaultValue:
+            'vidlink,autoembed,vidsrcvip,multiembed,embedsu,insertunit',
       );
 
   static List<String>? get scrapeSourceOrderList {

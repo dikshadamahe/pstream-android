@@ -109,6 +109,19 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(height: AppSpacing.x4),
+            _SettingsSection(
+              title: 'Watch preferences',
+              subtitle:
+                  'Brainstorm from design review — controls are not wired yet.',
+              child: Text(
+                '• Default stream quality (auto / cap resolution)\n'
+                '• Subtitle defaults: on/off, size, color\n'
+                '• Library stats: finished titles, total watch time\n'
+                '• “My list” as the bookmarks surface (Figma list → bookmarks)',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
           ],
         ),
       ),

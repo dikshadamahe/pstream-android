@@ -8,10 +8,18 @@ import 'package:pstream_android/screens/player_screen.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
 import 'package:pstream_android/screens/search_screen.dart';
 import 'package:pstream_android/screens/settings_screen.dart';
+import 'package:pstream_android/screens/splash_screen.dart';
 import 'package:pstream_android/widgets/adaptive_nav.dart';
 
 final GoRouter appRouter = GoRouter(
+  initialLocation: '/splash',
   routes: <RouteBase>[
+    GoRoute(
+      path: '/splash',
+      builder: (BuildContext context, GoRouterState state) {
+        return const SplashScreen();
+      },
+    ),
     StatefulShellRoute.indexedStack(
       builder: (
         BuildContext context,
