@@ -10,6 +10,7 @@ import 'package:pstream_android/screens/scraping_screen.dart';
 import 'package:pstream_android/screens/search_screen.dart';
 import 'package:pstream_android/screens/settings_screen.dart';
 import 'package:pstream_android/screens/splash_screen.dart';
+import 'package:pstream_android/screens/watch_stats_screen.dart';
 import 'package:pstream_android/widgets/adaptive_nav.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -97,6 +98,12 @@ final GoRouter appRouter = GoRouter(
       path: '/history',
       builder: (BuildContext context, GoRouterState state) {
         return const HistoryScreen();
+      },
+    ),
+    GoRoute(
+      path: '/watch-stats',
+      builder: (BuildContext context, GoRouterState state) {
+        return const WatchStatsScreen();
       },
     ),
     GoRoute(

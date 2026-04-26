@@ -8,7 +8,17 @@ class LocalStorage {
   static const String _bookmarksBoxName = 'bookmarks';
   static const String _progressBoxName = 'progress';
   static const String _watchHistoryBoxName = 'watch_history';
+  static const String _prefsBoxName = 'prefs';
   static const double _historyRatioThreshold = 0.03;
+
+  // Pref keys
+  static const String prefKeyQualityCap = 'pref_quality_cap';
+  static const String prefKeySubtitlesDefaultOn = 'pref_subtitles_default_on';
+
+  // Quality cap values
+  static const String qualityCapAuto = 'auto';
+  static const String qualityCap720 = '720p';
+  static const String qualityCap1080 = '1080p';
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -16,6 +26,7 @@ class LocalStorage {
       Hive.openBox<Map>(_bookmarksBoxName),
       Hive.openBox<Map>(_progressBoxName),
       Hive.openBox<Map>(_watchHistoryBoxName),
+      Hive.openBox<dynamic>(_prefsBoxName),
     ]);
   }
 
@@ -201,6 +212,74 @@ class LocalStorage {
   static Box<Map> get _bookmarksBox => Hive.box<Map>(_bookmarksBoxName);
   static Box<Map> get _progressBox => Hive.box<Map>(_progressBoxName);
   static Box<Map> get _watchHistoryBox => Hive.box<Map>(_watchHistoryBoxName);
+  static Box<dynamic> get _prefsBox => Hive.box<dynamic>(_prefsBoxName);
+
+  /// Default stream quality cap. One of [qualityCapAuto], [qualityCap720],
+  /// [qualityCap1080]. Defaults to [qualityCapAuto] when unset.
+  static String getQualityCap() {
+    final dynamic raw = _prefsBox.get(prefKeyQualityCap);
+    final String value = raw is String ? raw : qualityCapAuto;
+    if (value != qualityCapAuto &&
+        value != qualityCap720 &&
+        value != qualityCap1080) {
+      return qualityCapAuto;
+    }
+    return value;
+  }
+
+  static Future<void> setQualityCap(String value) async {
+    await _prefsBox.put(prefKeyQualityCap, value);
+  }
+
+  /// Whether subtitles should turn on by default at the start of a stream
+  /// when the source has captions available.
+  static bool getSubtitlesDefaultOn() {
+    final dynamic raw = _prefsBox.get(prefKeySubtitlesDefaultOn);
+    return raw is bool ? raw : false;
+  }
+
+  static Future<void> setSubtitlesDefaultOn(bool value) async {
+    await _prefsBox.put(prefKeySubtitlesDefaultOn, value);
+  }
+
+  /// Aggregate watch statistics derived from existing boxes; no extra Hive
+  /// schema needed.
+  static WatchStats getWatchStats() {
+    final List<Map<String, dynamic>> progressEntries = _progressBox.values
+        .whereType<Map>()
+        .map((Map<dynamic, dynamic> value) => Map<String, dynamic>.from(value))
+        .toList();
+
+    int totalWatchedSecs = 0;
+    int finishedTitles = 0;
+    int inProgressTitles = 0;
+
+    for (final Map<String, dynamic> entry in progressEntries) {
+      final int positionSecs = _readInt(entry['positionSecs']);
+      final double ratio = _readDouble(entry['watchedRatio']);
+      totalWatchedSecs += positionSecs;
+      if (ratio >= AppConfig.watchedRatio) {
+        finishedTitles += 1;
+      } else if (ratio >= 0.03) {
+        inProgressTitles += 1;
+      }
+    }
+
+    return WatchStats(
+      finishedTitles: finishedTitles,
+      inProgressTitles: inProgressTitles,
+      totalWatchedSecs: totalWatchedSecs,
+      historyEntries: _watchHistoryBox.length,
+      bookmarks: _bookmarksBox.length,
+    );
+  }
+
+  static int _readInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    return int.tryParse('$value') ?? 0;
+  }
 
   static Map<String, dynamic> _mediaToMap(MediaItem mediaItem) {
     return <String, dynamic>{
@@ -269,4 +348,23 @@ class EpisodeSelectionData {
 
   final int season;
   final int episode;
+}
+
+/// Aggregate watch numbers shown in the Watch statistics screen.
+class WatchStats {
+  const WatchStats({
+    required this.finishedTitles,
+    required this.inProgressTitles,
+    required this.totalWatchedSecs,
+    required this.historyEntries,
+    required this.bookmarks,
+  });
+
+  final int finishedTitles;
+  final int inProgressTitles;
+  final int totalWatchedSecs;
+  final int historyEntries;
+  final int bookmarks;
+
+  Duration get totalWatched => Duration(seconds: totalWatchedSecs);
 }

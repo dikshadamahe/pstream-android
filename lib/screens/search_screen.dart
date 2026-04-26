@@ -102,9 +102,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       WindowClass.expanded => AppSpacing.x6,
     };
 
+    final bool standaloneMode = widget.title != null;
+
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
+      appBar: standaloneMode
+          ? AppBar(
+              title: Text(widget.title!),
+              backgroundColor: AppColors.backgroundMain,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+            )
+          : null,
       body: SafeArea(
+        top: !standaloneMode,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -140,8 +151,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               color: AppColors.searchText,
                             ),
                         cursorColor: AppColors.typeLink,
+                        // All borders explicitly nulled so the global
+                        // [InputDecorationTheme] does not paint a purple
+                        // outline on focus inside the rounded pill.
                         decoration: InputDecoration(
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          filled: false,
+                          fillColor: AppColors.transparent,
                           hintText: 'Search titles, people, or studios',
                           hintStyle: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(

@@ -19,6 +19,7 @@ import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/scraping_screen.dart';
 import 'package:pstream_android/services/external_subtitle_service.dart';
 import 'package:pstream_android/services/stream_service.dart';
+import 'package:pstream_android/storage/local_storage.dart';
 import 'package:pstream_android/utils/player_native_tune.dart';
 import 'package:pstream_android/widgets/player_controls.dart';
 import 'package:screen_brightness/screen_brightness.dart';
@@ -111,6 +112,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     WidgetsBinding.instance.addObserver(this);
     _storageController = ref.read(storageControllerProvider);
     _streamService = ref.read(streamServiceProvider);
+    _applyUserPlaybackPrefs();
     _applyPlayerChrome();
     _bindPlayerStreams();
     _openStream();
@@ -143,6 +145,66 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     unawaited(_player.dispose());
     super.dispose();
+  }
+
+  /// Apply Hive-stored Playback prefs from Settings before [_openStream] runs.
+  /// Quality cap picks the highest available quality at-or-below the cap.
+  /// Subtitles-default-on flips [_subtitlesEnabled] so the first subtitle
+  /// track is auto-selected when the stream has captions.
+  void _applyUserPlaybackPrefs() {
+    final String cap = LocalStorage.getQualityCap();
+    if (cap != LocalStorage.qualityCapAuto) {
+      final int? capLines = _qualityCapToLines(cap);
+      if (capLines != null) {
+        final MapEntry<String, StreamQuality>? best =
+            _bestQualityAtOrBelow(capLines);
+        if (best != null && (best.value.url?.isNotEmpty ?? false)) {
+          _selectedQualityKey = best.key;
+          _selectedQualityUrl = best.value.url;
+        }
+      }
+    }
+
+    if (LocalStorage.getSubtitlesDefaultOn() &&
+        _availableCaptions.isNotEmpty) {
+      _subtitlesEnabled = true;
+    }
+  }
+
+  static int? _qualityCapToLines(String cap) {
+    return switch (cap) {
+      LocalStorage.qualityCap720 => 720,
+      LocalStorage.qualityCap1080 => 1080,
+      _ => null,
+    };
+  }
+
+  /// Pick the highest [StreamQuality] whose key (e.g. `1080`, `720p`) parses
+  /// to a height ≤ [maxLines]. Falls back to null when no quality fits.
+  MapEntry<String, StreamQuality>? _bestQualityAtOrBelow(int maxLines) {
+    final List<MapEntry<String, StreamQuality>> candidates = _availableQualities
+        .where((MapEntry<String, StreamQuality> entry) {
+          final int? lines = _parseQualityLines(entry.key);
+          return lines != null && lines <= maxLines;
+        })
+        .toList();
+    if (candidates.isEmpty) {
+      return null;
+    }
+    candidates.sort((a, b) {
+      final int aLines = _parseQualityLines(a.key) ?? 0;
+      final int bLines = _parseQualityLines(b.key) ?? 0;
+      return bLines.compareTo(aLines);
+    });
+    return candidates.first;
+  }
+
+  static int? _parseQualityLines(String key) {
+    final RegExpMatch? match = RegExp(r'(\d{3,4})').firstMatch(key);
+    if (match == null) {
+      return null;
+    }
+    return int.tryParse(match.group(1)!);
   }
 
   Future<void> _applyPlayerChrome() async {

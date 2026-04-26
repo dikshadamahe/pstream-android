@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/providers/storage_provider.dart';
+import 'package:pstream_android/storage/local_storage.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -111,26 +112,32 @@ class SettingsScreen extends ConsumerWidget {
             _SettingsSection(
               title: 'Playback',
               subtitle:
-                  'Placeholders only — values are not persisted until product approves Hive keys.',
+                  'Defaults applied when starting a new stream. Saved to this device.',
               child: Column(
                 children: <Widget>[
-                  _SettingsPlaceholderNavTile(
-                    title: 'Default stream quality',
-                    subtitle: 'Auto, 720p cap, 1080p cap (coming soon)',
-                    onTap: () =>
-                        _showSoonSheet(context, 'Default stream quality'),
+                  _QualityCapTile(
+                    value: ref.watch(qualityCapPrefProvider),
+                    onPick: (String picked) async {
+                      await ref
+                          .read(storageControllerProvider)
+                          .setQualityCap(picked);
+                    },
                   ),
                   const SizedBox(height: AppSpacing.x3),
-                  _SettingsPlaceholderNavTile(
-                    title: 'Subtitles',
-                    subtitle: 'Default on/off, size, contrast (coming soon)',
-                    onTap: () => _showSoonSheet(context, 'Subtitles'),
+                  _SubtitleDefaultTile(
+                    value: ref.watch(subtitlesDefaultOnPrefProvider),
+                    onChanged: (bool next) async {
+                      await ref
+                          .read(storageControllerProvider)
+                          .setSubtitlesDefaultOn(next);
+                    },
                   ),
                   const SizedBox(height: AppSpacing.x3),
-                  _SettingsPlaceholderNavTile(
+                  _SettingsNavTile(
+                    icon: Icons.insights_rounded,
                     title: 'Watch statistics',
-                    subtitle: 'Finished titles, total time (coming soon)',
-                    onTap: () => _showSoonSheet(context, 'Watch statistics'),
+                    subtitle: 'Finished titles, in-progress, total time.',
+                    onTap: () => context.push('/watch-stats'),
                   ),
                 ],
               ),
@@ -172,34 +179,6 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  void _showSoonSheet(BuildContext context, String feature) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.x4,
-            AppSpacing.x2,
-            AppSpacing.x4,
-            AppSpacing.x8,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(feature, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.x2),
-              Text(
-                'This control is a design placeholder. Persistence and player wiring will ship after approval.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 }
 
 class MediaStat {
@@ -432,16 +411,91 @@ class _SettingsNavTile extends StatelessWidget {
   }
 }
 
-class _SettingsPlaceholderNavTile extends StatelessWidget {
-  const _SettingsPlaceholderNavTile({
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+/// Renders the saved [LocalStorage.getQualityCap] value and opens a
+/// radio-list bottom sheet so the user can pick a new cap. Persists via
+/// [StorageController.setQualityCap].
+class _QualityCapTile extends StatelessWidget {
+  const _QualityCapTile({required this.value, required this.onPick});
 
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final String value;
+  final ValueChanged<String> onPick;
+
+  static String _label(String value) {
+    return switch (value) {
+      LocalStorage.qualityCap720 => '720p cap',
+      LocalStorage.qualityCap1080 => '1080p cap',
+      _ => 'Auto',
+    };
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final String? picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.modalBackground,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.x4,
+              AppSpacing.x0,
+              AppSpacing.x4,
+              AppSpacing.x4,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Default stream quality',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.x1),
+                Text(
+                  'Picks the highest available quality at or below this cap when a stream first opens.',
+                  style: Theme.of(sheetContext).textTheme.bodySmall,
+                ),
+                const SizedBox(height: AppSpacing.x3),
+                for (final ({String id, String label, String hint}) opt
+                    in const <({String id, String label, String hint})>[
+                  (
+                    id: LocalStorage.qualityCapAuto,
+                    label: 'Auto',
+                    hint: 'Use the source default',
+                  ),
+                  (
+                    id: LocalStorage.qualityCap720,
+                    label: '720p cap',
+                    hint: 'Save data on cellular',
+                  ),
+                  (
+                    id: LocalStorage.qualityCap1080,
+                    label: '1080p cap',
+                    hint: 'Best quality on Wi-Fi',
+                  ),
+                ])
+                  RadioListTile<String>(
+                    value: opt.id,
+                    groupValue: value,
+                    onChanged: (String? next) {
+                      if (next != null) {
+                        Navigator.of(sheetContext).pop(next);
+                      }
+                    },
+                    title: Text(opt.label),
+                    subtitle: Text(opt.hint),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null && picked != value) {
+      onPick(picked);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -450,7 +504,7 @@ class _SettingsPlaceholderNavTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
-        onTap: onTap,
+        onTap: () => _open(context),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.x4,
@@ -458,26 +512,87 @@ class _SettingsPlaceholderNavTile extends StatelessWidget {
           ),
           child: Row(
             children: <Widget>[
+              const Icon(
+                Icons.high_quality_rounded,
+                color: AppColors.typeLink,
+              ),
+              const SizedBox(width: AppSpacing.x3),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Default stream quality',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: AppSpacing.x1),
                     Text(
-                      subtitle,
+                      _label(value),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.typeLink,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.typeSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Inline switch row: persist whether subtitles auto-enable when a stream
+/// has caption tracks. Reads/writes via [storageControllerProvider].
+class _SubtitleDefaultTile extends StatelessWidget {
+  const _SubtitleDefaultTile({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.blackC150,
+      borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.x4 + AppSpacing.x1),
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.x4,
+            vertical: AppSpacing.x3,
+          ),
+          child: Row(
+            children: <Widget>[
+              const Icon(
+                Icons.closed_caption_rounded,
+                color: AppColors.typeLink,
+              ),
+              const SizedBox(width: AppSpacing.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Subtitles on by default',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.x1),
+                    Text(
+                      'Auto-enable subtitles when the stream has caption tracks.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
-              Text(
-                'Soon',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.typeSecondary,
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: AppColors.typeSecondary),
+              Switch(value: value, onChanged: onChanged),
             ],
           ),
         ),

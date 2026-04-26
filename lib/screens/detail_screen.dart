@@ -113,11 +113,16 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
       return;
     }
 
-    context.push(
-      '/search',
-      extra: SearchScreenArgs(
-        initialQuery: credit.name,
-        title: '${credit.name} Credits',
+    // `/search` is a [StatefulShellRoute] branch — pushing it via go_router
+    // produced a chromeless blank page (no AppBar / back affordance). Push
+    // a fresh [SearchScreen] outside the shell so the user gets a real
+    // back stack and credit-mode title bar.
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SearchScreen(
+          initialQuery: credit.name,
+          title: '${credit.name} Credits',
+        ),
       ),
     );
   }
@@ -160,9 +165,13 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   @override
   Widget build(BuildContext context) {
     final WindowClass layout = windowClass(context);
-    final double heroHeight =
-        MediaQuery.sizeOf(context).height *
-        (layout == WindowClass.compact ? 0.38 : 0.45);
+    final Size size = MediaQuery.sizeOf(context);
+    // Compact: backdrop earns its space because the in-body giant poster is
+    // gone; medium/expanded keep a slim hero so the side-by-side body has
+    // more vertical room.
+    final double heroHeight = layout == WindowClass.compact
+        ? size.height * 0.48
+        : size.height * 0.42;
     final AsyncValue<MediaItem> details = ref.watch(
       detailProvider(
         DetailRequest(id: widget.mediaItem.tmdbId, type: widget.mediaItem.type),
@@ -172,6 +181,10 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     final bool isLoading = details.isLoading;
     final Object? loadError = details.hasError ? details.error : null;
     final bool isBookmarked = ref.watch(bookmarkStatusProvider(media));
+    final bool isCompact = layout == WindowClass.compact;
+    // Floating poster card overlaps the backdrop bottom edge on compact, so
+    // we add bottom padding to the hero to reserve clear space for it.
+    final double heroBottomPad = isCompact ? AppSpacing.x12 : 0;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundMain,
@@ -181,17 +194,19 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             : CustomScrollView(
                 slivers: <Widget>[
                   SliverAppBar(
-                    expandedHeight: heroHeight,
+                    expandedHeight: heroHeight + heroBottomPad,
                     pinned: true,
                     backgroundColor: AppColors.backgroundMain,
                     flexibleSpace: FlexibleSpaceBar(
-                      background: _DetailBackdrop(media: media),
+                      background: isCompact
+                          ? _CompactDetailHero(media: media)
+                          : _DetailBackdrop(media: media),
                     ),
                   ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(AppSpacing.x4),
-                      child: layout == WindowClass.compact
+                      child: isCompact
                           ? _DetailBody(
                               media: media,
                               isLoading: isLoading,
@@ -322,6 +337,155 @@ class _DetailBackdrop extends StatelessWidget {
   }
 }
 
+/// Compact-only hero: full backdrop + bottom-overlay block with a small
+/// floating poster card on the left and title/year/rating to its right.
+///
+/// Replaces the old "huge centered poster after backdrop" layout that
+/// pushed actions below the fold and created visual redundancy.
+class _CompactDetailHero extends StatelessWidget {
+  const _CompactDetailHero({required this.media});
+
+  final MediaItem media;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        _DetailBackdrop(media: media),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  AppColors.transparent,
+                  AppColors.backgroundMain.withValues(alpha: 0.55),
+                  AppColors.backgroundMain,
+                ],
+                stops: const <double>[0, 0.55, 1],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: AppSpacing.x4,
+          right: AppSpacing.x4,
+          bottom: AppSpacing.x4,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              SizedBox(
+                width: AppSpacing.x20 + AppSpacing.x4,
+                child: AspectRatio(
+                  aspectRatio: 2 / 3,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppSpacing.x3),
+                    child: Hero(
+                      tag: 'poster-${media.tmdbId}',
+                      child: media.posterUrl('w342') == null
+                          ? const _BackdropPlaceholder()
+                          : CachedNetworkImage(
+                              imageUrl: media.posterUrl('w342')!,
+                              fit: BoxFit.cover,
+                              placeholder: (_, _) =>
+                                  const _BackdropPlaceholder(),
+                              errorWidget: (_, _, _) =>
+                                  const _BackdropPlaceholder(),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.x4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      media.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            color: AppColors.typeEmphasis,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
+                    ),
+                    const SizedBox(height: AppSpacing.x2),
+                    Row(
+                      children: <Widget>[
+                        _HeroPill(
+                          icon: Icons.calendar_today_rounded,
+                          label: media.year > 0 ? '${media.year}' : '—',
+                        ),
+                        const SizedBox(width: AppSpacing.x2),
+                        _HeroPill(
+                          icon: Icons.star_rounded,
+                          label: media.rating > 0
+                              ? media.rating.toStringAsFixed(1)
+                              : 'NR',
+                        ),
+                        if (media.isShow) ...<Widget>[
+                          const SizedBox(width: AppSpacing.x2),
+                          const _HeroPill(
+                            icon: Icons.live_tv_rounded,
+                            label: 'Series',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.blackC100.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(AppSpacing.x3),
+        border: Border.all(color: AppColors.dropdownBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.x2,
+          vertical: AppSpacing.x1,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: AppSpacing.x4, color: AppColors.typeLogo),
+            const SizedBox(width: AppSpacing.x1),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.typeEmphasis,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DetailBody extends StatelessWidget {
   const _DetailBody({
     required this.media,
@@ -345,38 +509,51 @@ class _DetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isCompact = windowClass(context) == WindowClass.compact;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (windowClass(context) == WindowClass.compact)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.x4),
-              child: _PosterPanel(media: media),
+        // Compact mode renders title + poster as part of the hero overlay
+        // (see [_CompactDetailHero]); the body skips both to avoid the giant
+        // duplicate poster + title stack.
+        if (!isCompact) ...<Widget>[
+          Text(
+            media.title,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: AppColors.typeEmphasis,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        Text(
-          media.title,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: AppColors.typeEmphasis,
-            fontWeight: FontWeight.w700,
+          const SizedBox(height: AppSpacing.x3),
+          Wrap(
+            spacing: AppSpacing.x2,
+            runSpacing: AppSpacing.x2,
+            children: <Widget>[
+              _MetaChip(label: media.year > 0 ? '${media.year}' : 'Unknown'),
+              _MetaChip(
+                label:
+                    media.rating > 0 ? media.rating.toStringAsFixed(1) : 'NR',
+              ),
+              ...media.genres.take(4).map((MediaGenre genre) {
+                return _MetaChip(label: genre.name);
+              }),
+            ],
           ),
-        ),
-        const SizedBox(height: AppSpacing.x3),
-        Wrap(
-          spacing: AppSpacing.x2,
-          runSpacing: AppSpacing.x2,
-          children: <Widget>[
-            _MetaChip(label: media.year > 0 ? '${media.year}' : 'Unknown'),
-            _MetaChip(
-              label: media.rating > 0 ? media.rating.toStringAsFixed(1) : 'NR',
+          const SizedBox(height: AppSpacing.x4),
+        ] else ...<Widget>[
+          // Compact: only the genre chip strip remains in the body. Title +
+          // year + rating already sit in the hero overlay.
+          if (media.genres.isNotEmpty) ...<Widget>[
+            Wrap(
+              spacing: AppSpacing.x2,
+              runSpacing: AppSpacing.x2,
+              children: media.genres.take(4).map((MediaGenre genre) {
+                return _MetaChip(label: genre.name);
+              }).toList(growable: false),
             ),
-            ...media.genres.take(4).map((MediaGenre genre) {
-              return _MetaChip(label: genre.name);
-            }),
+            const SizedBox(height: AppSpacing.x4),
           ],
-        ),
-        const SizedBox(height: AppSpacing.x4),
+        ],
         Row(
           children: <Widget>[
             Expanded(

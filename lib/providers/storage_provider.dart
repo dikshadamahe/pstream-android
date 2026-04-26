@@ -79,6 +79,21 @@ final latestEpisodeSelectionProvider =
       );
     });
 
+final qualityCapPrefProvider = Provider<String>((Ref ref) {
+  ref.watch(storageRevisionProvider);
+  return LocalStorage.getQualityCap();
+});
+
+final subtitlesDefaultOnPrefProvider = Provider<bool>((Ref ref) {
+  ref.watch(storageRevisionProvider);
+  return LocalStorage.getSubtitlesDefaultOn();
+});
+
+final watchStatsProvider = Provider<WatchStats>((Ref ref) {
+  ref.watch(storageRevisionProvider);
+  return LocalStorage.getWatchStats();
+});
+
 final storageControllerProvider = Provider<StorageController>((Ref ref) {
   return StorageController(ref);
 });
@@ -108,6 +123,16 @@ class StorageController {
       LocalStorage.clearHistory(),
       LocalStorage.clearProgress(),
     ]);
+    _refresh();
+  }
+
+  Future<void> setQualityCap(String value) async {
+    await LocalStorage.setQualityCap(value);
+    _refresh();
+  }
+
+  Future<void> setSubtitlesDefaultOn(bool value) async {
+    await LocalStorage.setSubtitlesDefaultOn(value);
     _refresh();
   }
 

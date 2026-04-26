@@ -213,7 +213,17 @@ app.get("/scrape/stream", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  // Tell intermediaries (nginx / CDN / Express compression) not to buffer
+  // the SSE response. Without this, `init` can sit in a buffer until the
+  // long `runScrape` call completes — clients see a stuck "Loading source
+  // catalog" screen for the full request timeout.
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
+
+  // Disable Nagle so each `res.write` chunk lands on the wire immediately.
+  if (res.socket && typeof res.socket.setNoDelay === "function") {
+    res.socket.setNoDelay(true);
+  }
 
   writeSse(res, "init", {
     sources: providers.listSources(),
@@ -221,6 +231,17 @@ app.get("/scrape/stream", async (req, res) => {
   if (typeof res.flush === "function") {
     res.flush();
   }
+
+  // Periodic SSE keepalive comments while the long-running scrape executes.
+  // Comment lines (":") are ignored by EventSource clients but force the
+  // socket to flush, defeating any remaining intermediate buffers.
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(": ping\n\n");
+    }
+  }, 15000);
+  res.on("close", () => clearInterval(keepAlive));
+  res.on("finish", () => clearInterval(keepAlive));
 
   try {
     const result = await runScrape(req.query);
