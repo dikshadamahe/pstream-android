@@ -94,10 +94,16 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
   }
 
   Future<void> _primeCatalog() async {
+    await _fetchAndApplyCatalog();
+  }
+
+  /// GET /sources on providers-api. Returns true when at least one source id
+  /// was merged (used after SSE delivered no catalog, or init was empty).
+  Future<bool> _fetchAndApplyCatalog() async {
     try {
       final ScrapeCatalog catalog = await _streamService.fetchCatalog();
       if (!mounted) {
-        return;
+        return false;
       }
 
       if (catalog.sources.isNotEmpty) {
@@ -107,10 +113,9 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
       for (final ScrapeSourceDefinition embed in catalog.embeds) {
         _embedNameByScraperId[embed.id] = embed.name;
       }
+      return catalog.sources.isNotEmpty;
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
+      return false;
     }
   }
 
@@ -209,6 +214,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     }
 
     _stopSourceRotation();
+    final bool hadNoSourcesYet = _sourceOrder.isEmpty;
     setState(() {
       _isLoading = false;
       _failureMessage = message;
@@ -222,6 +228,11 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         }
       }
     });
+    // If SSE never populated sources (buffering, empty init, etc.), GET /sources
+    // often still works — merge so "Choose source manually" can open.
+    if (hadNoSourcesYet) {
+      unawaited(_fetchAndApplyCatalog());
+    }
   }
 
   void _mergeSources(List<ScrapeSourceDefinition> sources) {
@@ -386,7 +397,20 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
 
   Future<void> _showManualPicker() async {
     if (_sourceOrder.isEmpty) {
-      return;
+      final bool loaded = await _fetchAndApplyCatalog();
+      if (!mounted) {
+        return;
+      }
+      if (!loaded || _sourceOrder.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No source list from server. On a PC run: curl YOUR_ORACLE_IP:3001/sources — the JSON "sources" array must not be empty. Check providers-api and SIMPLE_PROXY_URL on Oracle.',
+            ),
+          ),
+        );
+        return;
+      }
     }
 
     final String? sourceId = await showModalBottomSheet<String>(
@@ -624,7 +648,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                                 minimumSize:
                                     const Size.fromHeight(AppSpacing.x12),
                               ),
-                              onPressed: () {
+                              onPressed: () async {
                                 setState(() {
                                   _allFailure = false;
                                   _failureMessage = null;
@@ -634,6 +658,17 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                                     _statuses[id] = ScrapeStatus.waiting;
                                   }
                                 });
+                                if (_sourceOrder.isEmpty) {
+                                  await _fetchAndApplyCatalog();
+                                  if (!mounted) {
+                                    return;
+                                  }
+                                  setState(() {
+                                    for (final String id in _sourceOrder) {
+                                      _statuses[id] = ScrapeStatus.waiting;
+                                    }
+                                  });
+                                }
                                 _startStreamScrape();
                               },
                               child: const Text('Try again'),
