@@ -21,30 +21,35 @@ class StreamService {
     return Stream<ScrapeEvent>.multi((multi) async {
       final http.Client client = http.Client();
       StreamSubscription<String>? subscription;
-      Timer? timeoutTimer;
+      /// One deadline for the whole scrape (align with providers-api REQUEST_TIMEOUT_MS).
+      /// Do **not** reset on each SSE line — the server may only send [init] then block until
+      /// runAll finishes, so a per-chunk 60s idle timeout fires before a valid result.
+      Timer? maxWaitTimer;
       bool doneSeen = false;
       bool fallbackTriggered = false;
 
       void closeResources() {
-        timeoutTimer?.cancel();
+        maxWaitTimer?.cancel();
         client.close();
       }
 
-      void armTimeout() {
-        timeoutTimer?.cancel();
-        timeoutTimer = Timer(const Duration(seconds: 60), () async {
+      void startMaxWaitTimer() {
+        maxWaitTimer?.cancel();
+        maxWaitTimer = Timer(const Duration(seconds: 100), () async {
           if (doneSeen) {
             return;
           }
-
           await subscription?.cancel();
-          closeResources();
-          multi.addError(
-            TimeoutException(
-              'Scrape did not emit a done event within 60 seconds.',
-            ),
-          );
-          multi.close();
+          client.close();
+          if (!multi.isClosed) {
+            multi.addError(
+              TimeoutException(
+                'Scrape is taking too long (over 100s). '
+                'Check Oracle and network, or try again.',
+              ),
+            );
+            multi.close();
+          }
         });
       }
 
@@ -97,7 +102,7 @@ class StreamService {
           );
         }
 
-        armTimeout();
+        startMaxWaitTimer();
 
         String? currentEvent;
         final List<String> currentData = <String>[];
@@ -118,9 +123,7 @@ class StreamService {
 
           if (event.isDone) {
             doneSeen = true;
-            timeoutTimer?.cancel();
-          } else {
-            armTimeout();
+            maxWaitTimer?.cancel();
           }
 
           currentEvent = null;

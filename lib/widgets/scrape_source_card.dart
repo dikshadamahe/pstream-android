@@ -10,11 +10,14 @@ class ScrapeSourceCard extends StatelessWidget {
     required this.sourceName,
     required this.status,
     this.embeds = const <ScrapeEmbedItem>[],
+    this.subline,
   });
 
   final String sourceName;
   final ScrapeStatus status;
   final List<ScrapeEmbedItem> embeds;
+  /// Shown under [sourceName] when set (e.g. "Checking for videos…" while pending).
+  final String? subline;
   static const double estimatedHeight = AppSpacing.x16 + AppSpacing.x12;
 
   @override
@@ -33,7 +36,22 @@ class ScrapeSourceCard extends StatelessWidget {
                 _StatusCircle(status: status),
                 const SizedBox(width: AppSpacing.x3),
                 Expanded(
-                  child: Text(sourceName, style: theme.textTheme.titleMedium),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(sourceName, style: theme.textTheme.titleMedium),
+                      if (subline != null && subline!.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: AppSpacing.x1),
+                        Text(
+                          subline!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.typeText,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),

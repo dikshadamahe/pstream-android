@@ -65,13 +65,10 @@ class MediaItem {
           .map((dynamic genre) => MediaGenre.fromJson(_asMap(genre)))
           .where((MediaGenre genre) => genre.name.isNotEmpty)
           .toList(),
-      credits:
-          ((((json['credits'] as Map?)?['cast']) as List?) ??
-                  (json['credits'] as List?) ??
-                  const <dynamic>[])
-              .map((dynamic credit) => MediaCredit.fromJson(_asMap(credit)))
-              .where((MediaCredit credit) => credit.name.isNotEmpty)
-              .toList(),
+      credits: _rawCreditsList(json)
+          .map((dynamic credit) => MediaCredit.fromJson(_asMap(credit)))
+          .where((MediaCredit credit) => credit.name.isNotEmpty)
+          .toList(),
       runtimeMins: _parseRuntimeMins(json),
     );
   }
@@ -212,6 +209,23 @@ class MediaItem {
     return Map<String, dynamic>.from(
       value as Map? ?? const <String, dynamic>{},
     );
+  }
+
+  /// TMDB details use `credits: { cast: [...] }`; [LocalStorage] persists a flat
+  /// `credits: [...]`. The API shape used `credits as Map?` first, which throws
+  /// when the value is a [List] (e.g. after loading bookmarks from Hive).
+  static List<dynamic> _rawCreditsList(Map<String, dynamic> json) {
+    final dynamic raw = json['credits'];
+    if (raw is List) {
+      return raw;
+    }
+    if (raw is Map) {
+      final dynamic cast = raw['cast'];
+      if (cast is List) {
+        return cast;
+      }
+    }
+    return const <dynamic>[];
   }
 }
 
