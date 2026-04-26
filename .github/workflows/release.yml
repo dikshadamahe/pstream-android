@@ -54,6 +54,12 @@ jobs:
             echo "Missing GitHub secret or variable: TMDB_TOKEN or TMDB_READ_TOKEN"
             exit 1
           fi
+          if [ -z "${ORACLE_URL}" ]; then
+            echo "Missing GitHub Actions variable or secret: ORACLE_URL"
+            echo "Set ORACLE_URL to your public providers-api base URL (e.g. http://YOUR_ORACLE_IP:3001)."
+            echo "Without it, the release APK defaults to http://127.0.0.1:3001 and scraping will not work on devices."
+            exit 1
+          fi
 
       - name: Analyze
         run: flutter analyze
