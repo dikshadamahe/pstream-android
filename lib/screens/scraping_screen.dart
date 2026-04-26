@@ -402,7 +402,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
   Future<void> _showManualPicker() async {
     if (_sourceOrder.isEmpty) {
       final String? catalogErr = await _fetchAndApplyCatalog();
-      if (!mounted) {
+      if (!context.mounted) {
         return;
       }
       if (catalogErr != null || _sourceOrder.isEmpty) {
@@ -666,7 +666,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                                 if (_sourceOrder.isEmpty) {
                                   final String? catalogErr =
                                       await _fetchAndApplyCatalog();
-                                  if (!mounted) {
+                                  if (!context.mounted) {
                                     return;
                                   }
                                   if (catalogErr != null) {
