@@ -12,6 +12,12 @@ CLAUDE.md
 GEMINI.md
 AGENTS.md
 PROGRESS.md
+# Never commit: session / handoff / local agent notes
+*HANDOFF*.md
+*CHAT_CONTEXT*
+NEXT_CHAT_*.md
+SESSION_HANDOFF_*.md
+issues-fixes.md
 PROMPTS.md
 SETUP.md
 release.yml
