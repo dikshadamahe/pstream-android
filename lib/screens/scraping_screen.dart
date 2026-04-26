@@ -97,6 +97,16 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
     await _fetchAndApplyCatalog();
   }
 
+  /// [SnackBar] without holding [BuildContext] across an async gap.
+  void _showSnackBarIfMounted(String message) {
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   /// GET /sources on providers-api. Returns **null** if at least one source id
   /// was merged; otherwise an error string for a [SnackBar].
   Future<String?> _fetchAndApplyCatalog() async {
@@ -406,18 +416,17 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         return;
       }
       if (catalogErr != null || _sourceOrder.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              catalogErr ??
-                  'No sources after /sources. Compare with curl on a PC.',
-            ),
-          ),
+        _showSnackBarIfMounted(
+          catalogErr ??
+              'No sources after /sources. Compare with curl on a PC.',
         );
         return;
       }
     }
 
+    if (!context.mounted) {
+      return;
+    }
     final String? sourceId = await showModalBottomSheet<String>(
       context: context,
       builder: (BuildContext context) {
@@ -442,7 +451,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
       },
     );
 
-    if (sourceId == null || !mounted) {
+    if (sourceId == null || !context.mounted) {
       return;
     }
 
@@ -469,7 +478,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         seasonTitle: widget.seasonTitle,
       );
 
-      if (!mounted) {
+      if (!context.mounted) {
         return;
       }
 
@@ -492,7 +501,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
       });
       _navigateToPlayer(result);
     } catch (error) {
-      if (!mounted) {
+      if (!context.mounted) {
         return;
       }
 
@@ -506,7 +515,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
   }
 
   void _navigateToPlayer(StreamResult result) {
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
 
@@ -670,10 +679,7 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
                                     return;
                                   }
                                   if (catalogErr != null) {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      SnackBar(content: Text(catalogErr)),
-                                    );
+                                    _showSnackBarIfMounted(catalogErr);
                                   }
                                   setState(() {
                                     for (final String id in _sourceOrder) {
