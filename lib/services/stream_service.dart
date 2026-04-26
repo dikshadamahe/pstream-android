@@ -7,7 +7,6 @@ import 'package:pstream_android/config/app_config.dart';
 import 'package:pstream_android/models/media_item.dart';
 import 'package:pstream_android/models/scrape_event.dart';
 import 'package:pstream_android/models/stream_result.dart';
-import 'package:pstream_android/services/oracle_debug_log.dart';
 
 class StreamService {
   const StreamService();
@@ -95,14 +94,6 @@ class StreamService {
         );
         request.headers.addAll(_oracleJsonHeaders);
 
-        final Uri streamUri = request.url;
-        unawaited(
-          OracleDebugLog.append(
-            'SSE_STREAM begin host=${streamUri.host}:${streamUri.port} '
-            'path=${streamUri.path} tmdb=${mediaItem.tmdbId} type=${mediaItem.type}',
-          ),
-        );
-
         final http.StreamedResponse response = await client
             .send(request)
             .timeout(
@@ -114,11 +105,6 @@ class StreamService {
               },
             );
         if (response.statusCode != 200) {
-          unawaited(
-            OracleDebugLog.append(
-              'SSE_STREAM http=${response.statusCode} reason=${response.reasonPhrase}',
-            ),
-          );
           throw _SseConnectionException(
             'SSE connection failed with status ${response.statusCode}.',
           );
@@ -201,17 +187,13 @@ class StreamService {
               },
               cancelOnError: false,
             );
-      } on TimeoutException catch (e) {
-        unawaited(OracleDebugLog.append('SSE_STREAM catch TimeoutException $e'));
+      } on TimeoutException {
         await emitBlockingFallback();
-      } on _SseConnectionException catch (e) {
-        unawaited(OracleDebugLog.append('SSE_STREAM catch _SseConnectionException $e'));
+      } on _SseConnectionException {
         await emitBlockingFallback();
-      } on http.ClientException catch (e) {
-        unawaited(OracleDebugLog.append('SSE_STREAM catch ClientException $e'));
+      } on http.ClientException {
         await emitBlockingFallback();
       } catch (error, stackTrace) {
-        unawaited(OracleDebugLog.append('SSE_STREAM catch $error'));
         closeResources();
         if (!multi.isClosed) {
           multi.addError(error, stackTrace);
@@ -267,9 +249,7 @@ class StreamService {
   /// Same as [fetchCatalog] plus [failureReason] when the catalog is unusable.
   Future<CatalogFetchResult> fetchCatalogWithDiagnostics() async {
     final Uri uri = _baseUri('/sources');
-    unawaited(OracleDebugLog.append('SOURCES_GET begin $uri'));
     if (!uri.hasScheme || uri.host.isEmpty) {
-      unawaited(OracleDebugLog.append('SOURCES_GET abort invalidUri'));
       return CatalogFetchResult(
         catalog: const ScrapeCatalog(),
         failureReason:
@@ -284,12 +264,6 @@ class StreamService {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
-        unawaited(
-          OracleDebugLog.append(
-            'SOURCES_GET http=${response.statusCode} '
-            'prefix=${_bodyPrefix(response.body, 100)}',
-          ),
-        );
         return CatalogFetchResult(
           catalog: const ScrapeCatalog(),
           failureReason:
@@ -300,7 +274,6 @@ class StreamService {
 
       final dynamic decoded = jsonDecode(response.body);
       if (decoded is! Map) {
-        unawaited(OracleDebugLog.append('SOURCES_GET notJsonObject'));
         return CatalogFetchResult(
           catalog: const ScrapeCatalog(),
           failureReason:
@@ -322,11 +295,6 @@ class StreamService {
           .toList();
 
       if (sources.isEmpty) {
-        unawaited(
-          OracleDebugLog.append(
-            'SOURCES_GET emptyList bodyPrefix=${_bodyPrefix(response.body, 160)}',
-          ),
-        );
         return CatalogFetchResult(
           catalog: ScrapeCatalog(sources: sources, embeds: embeds),
           failureReason:
@@ -336,16 +304,10 @@ class StreamService {
         );
       }
 
-      unawaited(
-        OracleDebugLog.append(
-          'SOURCES_GET ok sources=${sources.length} embeds=${embeds.length}',
-        ),
-      );
       return CatalogFetchResult(
         catalog: ScrapeCatalog(sources: sources, embeds: embeds),
       );
     } on SocketException catch (e) {
-      unawaited(OracleDebugLog.append('SOURCES_GET socket $e'));
       return CatalogFetchResult(
         catalog: const ScrapeCatalog(),
         failureReason:
@@ -353,20 +315,17 @@ class StreamService {
             'Oracle security list / Wi‑Fi / VPN?',
       );
     } on TimeoutException {
-      unawaited(OracleDebugLog.append('SOURCES_GET timeout'));
       return CatalogFetchResult(
         catalog: const ScrapeCatalog(),
         failureReason:
             'Timed out loading /sources from ${uri.host}:${uri.port}.',
       );
     } on FormatException catch (e) {
-      unawaited(OracleDebugLog.append('SOURCES_GET format $e'));
       return CatalogFetchResult(
         catalog: const ScrapeCatalog(),
         failureReason: 'Bad JSON from /sources: $e',
       );
     } catch (e) {
-      unawaited(OracleDebugLog.append('SOURCES_GET error $e'));
       return CatalogFetchResult(
         catalog: const ScrapeCatalog(),
         failureReason: 'GET /sources failed: $e',
@@ -393,11 +352,6 @@ class StreamService {
     String? episodeTmdbId,
     String? seasonTitle,
   }) async {
-    unawaited(
-      OracleDebugLog.append(
-        'BLOCKING_FALLBACK start tmdb=${mediaItem.tmdbId} type=${mediaItem.type}',
-      ),
-    );
     final ScrapeCatalog catalog = await fetchCatalog();
     if (catalog.sources.isNotEmpty) {
       multi.add(ScrapeEvent.initWithSources(catalog.sources));
@@ -412,11 +366,6 @@ class StreamService {
       seasonTitle: seasonTitle,
     );
 
-    unawaited(
-      OracleDebugLog.append(
-        'BLOCKING_FALLBACK done streamResult=${result != null}',
-      ),
-    );
     multi.add(
       result == null
           ? ScrapeEvent.doneWithoutResult()
@@ -449,13 +398,6 @@ class StreamService {
       sourceOrder: sourceOrder,
     );
     try {
-      unawaited(
-        OracleDebugLog.append(
-          'SCRAPE_BLOCK begin host=${scrapeUri.host}:${scrapeUri.port} '
-          'tmdb=${mediaItem.tmdbId} type=${mediaItem.type} '
-          'singleSource=${sourceOrder != null && sourceOrder.length == 1 ? sourceOrder.first : null}',
-        ),
-      );
       final http.Response response = await client
           .get(
             scrapeUri,
@@ -464,7 +406,6 @@ class StreamService {
           .timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 404) {
-        unawaited(OracleDebugLog.append('SCRAPE_BLOCK http=404'));
         return null;
       }
 
@@ -473,38 +414,15 @@ class StreamService {
       );
 
       if (response.statusCode != 200) {
-        unawaited(
-          OracleDebugLog.append(
-            'SCRAPE_BLOCK http=${response.statusCode} err=${json['error']}',
-          ),
-        );
         throw Exception(json['error'] ?? 'Blocking scrape failed.');
       }
 
       final dynamic result = json['result'];
       if (result is! Map) {
-        unawaited(OracleDebugLog.append('SCRAPE_BLOCK ok=false no result map'));
         return null;
       }
 
-      unawaited(
-        OracleDebugLog.append(
-          'SCRAPE_BLOCK ok sourceId=${Map<String, dynamic>.from(result as Map)['sourceId']}',
-        ),
-      );
       return StreamResult.fromJson(Map<String, dynamic>.from(result));
-    } on SocketException catch (e) {
-      unawaited(OracleDebugLog.append('SCRAPE_BLOCK socket $e'));
-      rethrow;
-    } on TimeoutException catch (e) {
-      unawaited(OracleDebugLog.append('SCRAPE_BLOCK timeout $e'));
-      rethrow;
-    } on FormatException catch (e) {
-      unawaited(OracleDebugLog.append('SCRAPE_BLOCK json $e'));
-      rethrow;
-    } catch (e) {
-      unawaited(OracleDebugLog.append('SCRAPE_BLOCK catch $e'));
-      rethrow;
     } finally {
       client.close();
     }

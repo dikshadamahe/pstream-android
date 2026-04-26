@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pstream_android/config/app_theme.dart';
 import 'package:pstream_android/config/breakpoints.dart';
 import 'package:pstream_android/providers/storage_provider.dart';
-import 'package:pstream_android/services/oracle_debug_log.dart';
 import 'package:pstream_android/storage/local_storage.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -140,50 +138,6 @@ class SettingsScreen extends ConsumerWidget {
                     title: 'Watch statistics',
                     subtitle: 'Finished titles, in-progress, total time.',
                     onTap: () => context.push('/watch-stats'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.x4),
-            _SettingsSection(
-              title: 'Diagnostics',
-              subtitle:
-                  'Oracle / scrape debug log. Copy and paste for support.',
-              child: Column(
-                children: <Widget>[
-                  _SettingsNavTile(
-                    icon: Icons.article_outlined,
-                    title: 'Copy network debug log',
-                    subtitle:
-                        'veil_network_debug.txt (boot + /health + /sources + scrape).',
-                    onTap: () async {
-                      final String? text = await OracleDebugLog.readAllForExport();
-                      final String? path = await OracleDebugLog.logFilePathForDisplay();
-                      if (!context.mounted) {
-                        return;
-                      }
-                      if (text == null || text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'No log lines yet — restart app or try scrape once.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      await Clipboard.setData(ClipboardData(text: text));
-                      if (!context.mounted) {
-                        return;
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Copied ${text.length} chars. File: $path',
-                          ),
-                        ),
-                      );
-                    },
                   ),
                 ],
               ),

@@ -10,7 +10,6 @@ import 'package:pstream_android/models/scrape_event.dart';
 import 'package:pstream_android/models/stream_result.dart';
 import 'package:pstream_android/providers/stream_provider.dart';
 import 'package:pstream_android/screens/player_screen.dart';
-import 'package:pstream_android/services/oracle_debug_log.dart';
 import 'package:pstream_android/services/stream_service.dart';
 import 'package:pstream_android/widgets/scrape_source_card.dart'
     show ScrapeSourceCard, ScrapeStatus, StatusCircle;
@@ -147,12 +146,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
           onError: _handleError,
           onDone: () {
             if (!_hasSuccess() && mounted) {
-              unawaited(
-                OracleDebugLog.append(
-                  'SCRAPE_UI streamClosedNoSuccess tmdb=${widget.mediaItem.tmdbId} '
-                  'type=${widget.mediaItem.type} title=${widget.mediaItem.title}',
-                ),
-              );
               setState(() {
                 _isLoading = false;
                 _allFailure = true;
@@ -246,12 +239,6 @@ class _ScrapingScreenState extends ConsumerState<ScrapingScreen> {
         }
       }
     });
-    unawaited(
-      OracleDebugLog.append(
-        'SCRAPE_UI fail msg=$message tmdb=${widget.mediaItem.tmdbId} '
-        'type=${widget.mediaItem.type} hadNoSourcesYet=$hadNoSourcesYet',
-      ),
-    );
     // If SSE never populated sources (buffering, empty init, etc.), GET /sources
     // often still works — merge so "Choose source manually" can open.
     if (hadNoSourcesYet) {
