@@ -161,6 +161,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _playerReady = false;
   bool _hasPlaybackError = false;
   bool _sourceSwitching = false;
+  String? _pendingSourceId;
+  String? _pendingSourceLabel;
   /// Per-source probe (Sources sheet). Lives on the player, not the sheet, so
   /// “Check which sources …” can finish after the user closes the bottom sheet.
   final Map<String, _SourceStreamStatus> _sourceProbeStatus =
@@ -256,6 +258,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     setState(() {
       _sourceSwitching = false;
+      _pendingSourceId = null;
+      _pendingSourceLabel = null;
       _playerReady = false;
       _hasPlaybackError = false;
       _playbackError = null;
@@ -1110,6 +1114,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     qualityLabel: _currentQualityLabel,
                     sourceLabel: _sourceLabelForSettings,
                     subtitleLabel: _currentSubtitleLabel,
+                    sourceSwitching: _sourceSwitching,
                     onQualityTap: () async {
                       await _openQualitySheet();
                       setSheetState(() {});
@@ -1188,7 +1193,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _openSourceSheet() async {
     _showControls();
-    final String? selectedSourceId = await _showPlayerSheet<String>(
+    final ScrapeSourceDefinition? selectedSource =
+        await _showPlayerSheet<ScrapeSourceDefinition>(
       builder: (BuildContext context) {
         return _PlayerSheetScaffold(
           child: FutureBuilder<ScrapeCatalog>(
@@ -1243,11 +1249,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           currentSourceId: _currentCatalogSourceId,
                           sourceProbeStatus: _sourceProbeStatus,
                           sourceProbeScanRunning: _sourceProbeScanRunning,
+                          switchingSourceId: _pendingSourceId,
                           onCheckSources: () {
                             unawaited(_runSourceProbeForCatalog(sources));
                           },
-                          onPick: (String sourceId) {
-                            Navigator.of(context).pop(sourceId);
+                          onPick: (ScrapeSourceDefinition source) {
+                            Navigator.of(context).pop(source);
                           },
                         );
                       },
@@ -1259,12 +1266,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       },
     );
 
-    if (selectedSourceId == null ||
-        selectedSourceId == _currentCatalogSourceId) {
+    if (selectedSource == null ||
+        selectedSource.id == _currentCatalogSourceId) {
       return;
     }
 
-    await _switchSource(selectedSourceId);
+    await _switchSource(selectedSource);
   }
 
   Future<void> _openQualitySheet() async {
@@ -1911,20 +1918,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _switchSource(String sourceId) async {
+  Future<void> _switchSource(ScrapeSourceDefinition source) async {
     if (!mounted) {
       return;
     }
 
     setState(() {
       _sourceSwitching = true;
+      _pendingSourceId = source.id;
+      _pendingSourceLabel = source.name;
     });
+    _playerSettingsLabelRev.value++;
 
     try {
       await _persistProgress();
       final StreamResult? result = await _streamService.scrapeSingleSource(
         widget.args.mediaItem,
-        sourceId: sourceId,
+        sourceId: source.id,
         season: widget.args.season,
         episode: widget.args.episode,
         seasonTmdbId: widget.args.seasonTmdbId,
@@ -1939,7 +1949,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (result == null) {
         setState(() {
           _sourceSwitching = false;
+          _pendingSourceId = null;
+          _pendingSourceLabel = null;
         });
+        _playerSettingsLabelRev.value++;
         _setSubtitleState(
           enabled: _subtitlesEnabled,
           message: 'Source did not return a playable stream',
@@ -1950,7 +1963,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!_streamResultHasPlayableUrl(result)) {
         setState(() {
           _sourceSwitching = false;
+          _pendingSourceId = null;
+          _pendingSourceLabel = null;
         });
+        _playerSettingsLabelRev.value++;
         _setSubtitleState(
           enabled: _subtitlesEnabled,
           message: 'Source returned no playable URL',
@@ -1965,7 +1981,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       setState(() {
         _sourceSwitching = false;
+        _pendingSourceId = null;
+        _pendingSourceLabel = null;
       });
+      _playerSettingsLabelRev.value++;
       _setSubtitleState(
         enabled: _subtitlesEnabled,
         message: 'Could not switch source',
@@ -2492,7 +2511,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
-                              const LinearProgressIndicator(minHeight: 3),
+                              const RepaintBoundary(
+                                child: SizedBox(
+                                  width: AppSpacing.x10,
+                                  height: AppSpacing.x10,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                  ),
+                                ),
+                              ),
                               const SizedBox(height: AppSpacing.x4),
                               Text(
                                 'Switching source…',
@@ -2789,6 +2816,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// [ScrapeSourceDefinition.id] for the stream now playing: embed when set.
   String get _currentCatalogSourceId {
+    if (_sourceSwitching &&
+        _pendingSourceId != null &&
+        _pendingSourceId!.trim().isNotEmpty) {
+      return _pendingSourceId!.trim();
+    }
     final String? e = widget.args.streamResult.embedId;
     if (e != null && e.trim().isNotEmpty) {
       return e.trim();
@@ -2797,6 +2829,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   String get _sourceLabelForSettings {
+    if (_sourceSwitching &&
+        _pendingSourceLabel != null &&
+        _pendingSourceLabel!.trim().isNotEmpty) {
+      return '${_pendingSourceLabel!.trim()}...';
+    }
     final StreamResult r = widget.args.streamResult;
     if (r.embedName != null && r.embedName!.trim().isNotEmpty) {
       return r.embedName!.trim();
@@ -3095,6 +3132,7 @@ class _SourcesCatalogSheet extends StatelessWidget {
     required this.currentSourceId,
     required this.sourceProbeStatus,
     required this.sourceProbeScanRunning,
+    required this.switchingSourceId,
     required this.onCheckSources,
     required this.onPick,
   });
@@ -3103,8 +3141,9 @@ class _SourcesCatalogSheet extends StatelessWidget {
   final String currentSourceId;
   final Map<String, _SourceStreamStatus> sourceProbeStatus;
   final bool sourceProbeScanRunning;
+  final String? switchingSourceId;
   final VoidCallback onCheckSources;
-  final void Function(String sourceId) onPick;
+  final void Function(ScrapeSourceDefinition source) onPick;
 
   Widget _trailing(String sourceId) {
     final _SourceStreamStatus st =
@@ -3147,10 +3186,11 @@ class _SourcesCatalogSheet extends StatelessWidget {
             itemBuilder: (BuildContext context, int index) {
               final ScrapeSourceDefinition source = sources[index];
               final bool isCurrent = source.id == currentSourceId;
+              final bool isSwitching = source.id == switchingSourceId;
               return Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () => onPick(source.id),
+                  onTap: isSwitching ? null : () => onPick(source),
                   borderRadius: BorderRadius.circular(AppSpacing.x4),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -3174,7 +3214,15 @@ class _SourcesCatalogSheet extends StatelessWidget {
                                           : AppColors.typeText,
                                     ),
                               ),
-                              if (isCurrent)
+                              if (isSwitching)
+                                Text(
+                                  'Switching...',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(color: AppColors.typeSecondary),
+                                )
+                              else if (isCurrent)
                                 Text(
                                   'Now playing',
                                   style: Theme.of(context)
@@ -3185,7 +3233,16 @@ class _SourcesCatalogSheet extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (isCurrent)
+                        if (isSwitching)
+                          const Padding(
+                            padding: EdgeInsets.only(right: AppSpacing.x2),
+                            child: SizedBox(
+                              width: AppSpacing.x5,
+                              height: AppSpacing.x5,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        else if (isCurrent)
                           const Padding(
                             padding: EdgeInsets.only(right: AppSpacing.x2),
                             child: Icon(
@@ -3193,7 +3250,7 @@ class _SourcesCatalogSheet extends StatelessWidget {
                               color: AppColors.purpleC100,
                             ),
                           ),
-                        _trailing(source.id),
+                        if (!isSwitching) _trailing(source.id),
                       ],
                     ),
                   ),
@@ -3262,6 +3319,7 @@ class _PlayerSettingsHomeSheet extends StatelessWidget {
     required this.qualityLabel,
     required this.sourceLabel,
     required this.subtitleLabel,
+    required this.sourceSwitching,
     required this.onQualityTap,
     required this.onSourceTap,
     required this.onSubtitlesTap,
@@ -3270,6 +3328,7 @@ class _PlayerSettingsHomeSheet extends StatelessWidget {
   final String qualityLabel;
   final String sourceLabel;
   final String subtitleLabel;
+  final bool sourceSwitching;
   final VoidCallback onQualityTap;
   final VoidCallback onSourceTap;
   final VoidCallback onSubtitlesTap;
@@ -3298,6 +3357,7 @@ class _PlayerSettingsHomeSheet extends StatelessWidget {
                 child: _PlayerSettingsCard(
                   title: 'Source',
                   subtitle: sourceLabel,
+                  loading: sourceSwitching,
                   onTap: onSourceTap,
                 ),
               ),
@@ -3373,11 +3433,13 @@ class _PlayerSettingsCard extends StatelessWidget {
   const _PlayerSettingsCard({
     required this.title,
     required this.subtitle,
+    this.loading = false,
     this.onTap,
   });
 
   final String title;
   final String subtitle;
+  final bool loading;
   final VoidCallback? onTap;
 
   @override
@@ -3402,11 +3464,23 @@ class _PlayerSettingsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.typeEmphasis,
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.typeEmphasis,
+                            ),
                       ),
+                    ),
+                    if (loading)
+                      const SizedBox(
+                        width: AppSpacing.x4,
+                        height: AppSpacing.x4,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.x1),
                 Text(

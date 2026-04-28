@@ -146,10 +146,12 @@ async function runScrape(query) {
   }
 
   const sourceOrder = parseSourceOrder(query.sourceOrder);
+  const embedOrder = parseSourceOrder(query.embedOrder);
   const output = await withTimeout(
     providers.runAll({
       media: parsed.media,
       ...(sourceOrder ? { sourceOrder } : {}),
+      ...(embedOrder ? { embedOrder } : {}),
     }),
     config.requestTimeoutMs,
   );

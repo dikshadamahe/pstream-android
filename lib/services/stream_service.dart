@@ -238,6 +238,7 @@ class StreamService {
       episodeTmdbId: episodeTmdbId,
       seasonTitle: seasonTitle,
       sourceOrder: <String>[sourceId],
+      embedOrder: <String>[sourceId],
     );
   }
 
@@ -385,6 +386,7 @@ class StreamService {
     String? episodeTmdbId,
     String? seasonTitle,
     List<String>? sourceOrder,
+    List<String>? embedOrder,
   }) async {
     final http.Client client = http.Client();
     final Uri scrapeUri = _buildUri(
@@ -396,6 +398,7 @@ class StreamService {
       episodeTmdbId: episodeTmdbId,
       seasonTitle: seasonTitle,
       sourceOrder: sourceOrder,
+      embedOrder: embedOrder,
     );
     try {
       final http.Response response = await client
@@ -437,6 +440,7 @@ class StreamService {
     String? episodeTmdbId,
     String? seasonTitle,
     List<String>? sourceOrder,
+    List<String>? embedOrder,
   }) {
     final Uri base = _baseUri(path);
     final List<String>? effectiveOrder =
@@ -446,6 +450,7 @@ class StreamService {
         season: season,
         episode: episode,
         sourceOrder: effectiveOrder,
+        embedOrder: embedOrder,
         seasonTmdbId: seasonTmdbId,
         episodeTmdbId: episodeTmdbId,
         seasonTitle: seasonTitle,

@@ -95,6 +95,7 @@ class MediaItem {
     int? season,
     int? episode,
     List<String>? sourceOrder,
+    List<String>? embedOrder,
     String? seasonTmdbId,
     String? episodeTmdbId,
     String? seasonTitle,
@@ -116,6 +117,8 @@ class MediaItem {
         'seasonTitle': seasonTitle.trim(),
       if (sourceOrder != null && sourceOrder.isNotEmpty)
         'sourceOrder': sourceOrder.join(','),
+      if (embedOrder != null && embedOrder.isNotEmpty)
+        'embedOrder': embedOrder.join(','),
     };
   }
 
