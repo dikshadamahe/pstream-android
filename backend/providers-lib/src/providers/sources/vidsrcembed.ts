@@ -3,7 +3,7 @@ import { SourcererEmbed, SourcererOutput, makeSourcerer } from '@/providers/base
 import { MovieScrapeContext, ShowScrapeContext } from '@/utils/context';
 import { NotFoundError } from '@/utils/errors';
 
-const BASE = 'https://vidsrc-embed.ru';
+const BASE = 'https://vsembed.ru';
 
 /**
  * Iframe embed pages per operator spec. Prefer TMDB when `tmdbId` is present.
@@ -54,7 +54,7 @@ async function comboScraper(ctx: ShowScrapeContext | MovieScrapeContext): Promis
 
 export const vidsrcembedScraper = makeSourcerer({
   id: 'vidsrcembed',
-  name: 'VidSrc embed (vidsrc-embed.ru)',
+  name: 'VidSrc embed (vsembed.ru)',
   rank: 308,
   disabled: false,
   flags: [flags.CORS_ALLOWED],
