@@ -106,45 +106,20 @@ function buildPageHeaders(referer: string, userAgent: string): Record<string, st
   };
 }
 
-function buildProbeHeaders(referer: string, userAgent: string): Record<string, string> {
-  const origin = new URL(referer).origin;
-  return {
-    'User-Agent': userAgent,
-    Referer: referer,
-    Origin: origin,
-    Accept: '*/*',
-  };
-}
+function choosePlaylistCandidate(candidates: string[], pageUrl: string): string | null {
+  if (candidates.length == 0) {
+    return null;
+  }
 
-async function probePlaylistCandidate(
-  proxiedFetcher: UseableFetcher,
-  playlistUrl: string,
-  referer: string,
-  userAgent: string,
-): Promise<boolean> {
-  const headers = buildProbeHeaders(referer, userAgent);
+  const currentHost = new URL(pageUrl).hostname;
 
-  try {
-    const head = await proxiedFetcher.full<string>(playlistUrl, {
-      headers,
-      method: 'HEAD',
-    });
-    if (head.statusCode >= 200 && head.statusCode < 400) {
-      return true;
+  for (const candidate of candidates) {
+    if (new URL(candidate).hostname === currentHost) {
+      return candidate;
     }
-  } catch {
-    // Some hosts reject HEAD. Fall through to GET.
   }
 
-  try {
-    const get = await proxiedFetcher.full<string>(playlistUrl, {
-      headers,
-      method: 'GET',
-    });
-    return get.statusCode >= 200 && get.statusCode < 400;
-  } catch {
-    return false;
-  }
+  return candidates[0] ?? null;
 }
 
 export type ResolvedM3u8Result = {
@@ -173,10 +148,9 @@ async function resolvePlaylistFromPage(opts: PullM3u8FromPageOptions & {
   const finalUrl = response.finalUrl ?? currentUrl;
 
   const playlists = materializePlaylistCandidates(body, finalUrl);
-  for (const playlist of playlists) {
-    if (await probePlaylistCandidate(proxiedFetcher, playlist, finalUrl, userAgent)) {
-      return { playlist, referer: finalUrl };
-    }
+  const playlist = choosePlaylistCandidate(playlists, finalUrl);
+  if (playlist) {
+    return { playlist, referer: finalUrl };
   }
 
   const frames = extractFrameUrls(body, finalUrl);
